@@ -1,0 +1,16 @@
+# Xcode project build files
+DerivedData/
+build/
+*.xcuserstate
+*.xcworkspace
+xcuserdata/
+
+# macOS metadata
+.DS_Store
+
+# SwiftPM artifacts
+.build/
+.swiftpm/
+
+# Logs
+*.log
