@@ -1,6 +1,3 @@
-// Leftover - A Slick Swipe-to-Clean iOS App
-// Built with SwiftUI + PhotoKit
-
 import SwiftUI
 import Photos
 
@@ -10,19 +7,26 @@ struct ContentView: View {
     @State private var toBeDeleted: [PHAsset] = []
     @State private var totalSize: Int64 = 0
     @State private var showDeleteButton = false
-    @State private var showIntro = true
+    @State private var showAlbumPicker = true
+    @State private var albums: [PHAssetCollection] = []
+    @State private var selectedAlbum: PHAssetCollection? = nil
     @State private var currentAsset: PHAsset? = nil
-    @GestureState private var dragOffset: CGSize = .zero
     @State private var isDeleting = false
     @State private var showSnackbar = false
     @State private var snackbarMessage = ""
-    
+    @State private var allPhotosThumbnail: UIImage?
+    @State private var allPhotosCount: Int = 0
+    @State private var sortedAlbums: [AlbumMeta] = []
+    @State private var albumSearchText: String = ""
+    @State private var favoritedAssets: [PHAsset] = []
+    @GestureState private var dragOffset: CGSize = .zero
+
     var body: some View {
         ZStack {
             Color(.systemBackground).ignoresSafeArea()
-            
-            if showIntro {
-                introScreen
+
+            if showAlbumPicker {
+                albumPickerView
             } else if currentIndex < photoAssets.count {
                 swipeCard
             } else if showDeleteButton {
@@ -30,7 +34,7 @@ struct ContentView: View {
             } else {
                 ProgressView("Loading photos...")
             }
-            
+
             if isDeleting {
                 ProgressView("Deleting...")
                     .progressViewStyle(CircularProgressViewStyle())
@@ -38,7 +42,7 @@ struct ContentView: View {
                     .background(.ultraThinMaterial)
                     .cornerRadius(10)
             }
-            
+
             if showSnackbar {
                 VStack {
                     Spacer()
@@ -51,126 +55,111 @@ struct ContentView: View {
                 .transition(.move(edge: .bottom))
             }
         }
-        .onAppear {
-            PHPhotoLibrary.requestAuthorization { status in
-                switch status {
-                case .authorized, .limited:
-                    loadPhotos()
-                case .denied, .restricted:
-                    print("Permission denied")
-                case .notDetermined:
-                    print("Permission not determined")
-                @unknown default:
-                    print("Unknown authorization status")
-                }
-            }
-        }
         .onChange(of: currentIndex) { newIndex in
             if newIndex < photoAssets.count {
                 currentAsset = photoAssets[newIndex]
             }
         }
     }
-    
-    var introScreen: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack(spacing: 40) {
-                Spacer()
-                
-                Text("Leftover")
-                    .font(.system(size: 48, weight: .bold))
-                    .foregroundColor(.white)
-                
-                Button(action: {
-                    withAnimation {
-                        showIntro = false
-                        if !photoAssets.isEmpty {
-                            currentAsset = photoAssets[currentIndex]
+
+    var albumPickerView: some View {
+        NavigationView {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                    AlbumGridItem(
+                        title: "All Photos",
+                        count: allPhotosCount,
+                        thumbnail: allPhotosThumbnail
+                    ) {
+                        self.selectedAlbum = nil
+                        self.showAlbumPicker = false
+                        self.loadPhotos()
+                    }
+
+                    ForEach(sortedAlbums, id: \.collection.localIdentifier) { albumMeta in
+                        AlbumGridItem(
+                            title: albumMeta.collection.localizedTitle ?? "Unnamed",
+                            count: albumMeta.assetCount,
+                            thumbnail: albumMeta.thumbnail
+                        ) {
+                            self.selectedAlbum = albumMeta.collection
+                            self.showAlbumPicker = false
+                            self.loadPhotos(from: albumMeta.collection)
                         }
                     }
-                }) {
-                    Text("Start Cleaning")
-                        .font(.headline)
-                        .padding()
-                        .frame(maxWidth: .infinity)
-                        .background(Color.white)
-                        .foregroundColor(.black)
-                        .cornerRadius(12)
-                        .padding(.horizontal)
                 }
-                
-                Spacer()
-                
-                VStack(spacing: 4) {
-                    HStack(spacing: 4) {
-                        Text("Made with Love by")
-                            .foregroundColor(.white)
-                            .font(.footnote)
-                        
-                        Text("Kara")
-                            .bold()
-                            .foregroundColor(.blue)
-                            .underline()
-                            .font(.footnote)
-                            .onTapGesture {
-                                if let url = URL(string: "https://x.com/whysokara") {
-                                    UIApplication.shared.open(url)
-                                }
-                            }
+                .padding()
+            }
+            .navigationTitle("Choose Folder")
+            .onAppear {
+                PHPhotoLibrary.requestAuthorization { status in
+                    if status == .authorized || status == .limited {
+                        fetchAlbums()
                     }
-                    
-                    Text("© \(Calendar.current.component(.year, from: Date()))")
-                        .foregroundColor(.gray)
-                        .font(.caption)
                 }
-                .padding(.bottom, 20)
             }
         }
     }
-    
+
     var swipeCard: some View {
-        VStack(spacing: 12) {
-            ZStack(alignment: .bottomLeading) {
-                if let asset = currentAsset {
-                    PhotoAssetImage(asset: asset)
-                        .frame(height: 450)
-                        .cornerRadius(20)
-                        .shadow(radius: 10)
-                        .padding()
-                        .transition(.scale.combined(with: .opacity))
-                        .offset(x: dragOffset.width)
-                        .rotationEffect(.degrees(Double(dragOffset.width / 20)))
-                        .gesture(
-                            DragGesture()
-                                .updating($dragOffset) { value, state, _ in
-                                    state = value.translation
-                                }
-                                .onEnded { value in
-                                    withAnimation(.easeInOut) {
-                                        if value.translation.width < -100 {
-                                            toBeDeleted.append(photoAssets[currentIndex])
+        ZStack {
+            VStack(spacing: 12) {
+                Spacer(minLength: 40)
+
+                ZStack {
+                    if let asset = currentAsset {
+                        ZStack(alignment: .topTrailing) {
+                            PhotoAssetImage(asset: asset)
+                                .frame(height: 450)
+                                .cornerRadius(20)
+                                .shadow(radius: 10)
+                                .padding()
+                                .transition(.scale.combined(with: .opacity))
+                                .offset(x: dragOffset.width)
+                                .rotationEffect(.degrees(Double(dragOffset.width / 20)))
+                                .gesture(
+                                    DragGesture()
+                                        .updating($dragOffset) { value, state, _ in
+                                            state = value.translation
                                         }
-                                        currentIndex += 1
-                                        
-                                        if currentIndex >= photoAssets.count {
-                                            showDeleteButton = true
-                                        } else if currentIndex < photoAssets.count {
-                                            currentAsset = photoAssets[currentIndex]
+                                        .onEnded { value in
+                                            withAnimation(.easeInOut) {
+                                                if value.translation.width < -100 {
+                                                    toBeDeleted.append(asset)
+                                                    currentIndex += 1
+                                                    moveToNextPhoto()
+                                                } else if value.translation.width > 100 {
+                                                    currentIndex += 1
+                                                    moveToNextPhoto()
+                                                }
+                                            }
                                         }
-                                    }
+                                )
+                                .onTapGesture(count: 2) {
+                                    toggleFavorite(asset)
                                 }
-                        )
-                        .id(asset.localIdentifier)
+                                .id(asset.localIdentifier)
+
+                            // 💙 Transparent white heart shown if photo is already favorited
+                            if asset.isFavorite {
+                                Image(systemName: "heart.fill")
+                                    .foregroundColor(Color.white.opacity(0.6))
+                                    .font(.title2)
+                                    .padding(.top, 8)
+                                    .padding(.trailing, 12)
+                            }
+                        }
+                    }
                 }
-                
+
+                // 🔄 Undo Button (fixed below image, not inside image)
                 if currentIndex > 0 {
                     Button(action: {
                         withAnimation {
                             currentIndex -= 1
                             let asset = photoAssets[currentIndex]
                             toBeDeleted.removeAll { $0 == asset }
+                            favoritedAssets.removeAll { $0 == asset }
                             currentAsset = asset
                         }
                     }) {
@@ -179,43 +168,66 @@ struct ContentView: View {
                             .background(.ultraThinMaterial)
                             .cornerRadius(8)
                     }
-                    .padding(.leading)
-                    .padding(.bottom, 8)
+                    .padding(.top, 8)
                 }
-            }
-            
-            Text("→ Swipe right to keep.  ← Swipe left to clean.")
-                .font(.caption)
-                .foregroundColor(.gray)
-                .padding(.bottom, 4)
-            
-            Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            if !toBeDeleted.isEmpty {
-                Button("Delete \(toBeDeleted.count) Now") {
-                    deleteMarkedPhotos()
+
+                Text("→ Swipe right to keep.  ← Swipe left to clean.")
+                    .font(.caption)
+                    .foregroundColor(.gray)
+
+                Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                if !toBeDeleted.isEmpty {
+                    Button("Delete \(toBeDeleted.count) Now") {
+                        deleteMarkedPhotos()
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(Color(UIColor.systemRed))
+                    .foregroundColor(.white)
+                    .cornerRadius(10)
+                    .padding(.horizontal)
+                    .padding(.top)
                 }
-                .padding()
-                .frame(maxWidth: .infinity)
-                .background(Color(UIColor.systemRed))
-                .foregroundColor(.white)
-                .cornerRadius(10)
-                .padding(.horizontal)
-                .padding(.top)
+
+                Spacer()
             }
+
+            // 📁 Static Change Folder Button (top-left)
+            VStack {
+                HStack {
+                    Button(action: {
+                        withAnimation {
+                            resetToAlbumPicker()
+                        }
+                    }) {
+                        Label("Change Folder", systemImage: "chevron.backward")
+                            .font(.subheadline)
+                            .padding(10)
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(10)
+                    }
+                    .padding(.leading, 16)
+
+                    Spacer()
+                }
+                Spacer()
+            }
+            .padding(.top, 10)
         }
     }
-    
+
+
     var deleteConfirmation: some View {
         VStack(spacing: 20) {
             Text("You're done swiping!")
                 .font(.title2)
                 .bold()
-            
+
             Text("\(toBeDeleted.count) photos marked for deletion.")
-            
+
             Button("Delete Now") {
                 deleteMarkedPhotos()
             }
@@ -225,26 +237,83 @@ struct ContentView: View {
             .foregroundColor(.white)
             .cornerRadius(10)
             .padding(.horizontal)
+
+            Button("Choose Another Folder") {
+                withAnimation {
+                    resetToAlbumPicker()
+                }
+            }
+            .padding(.top)
+            .foregroundColor(.blue)
         }
     }
     
-    func loadPhotos() {
-        let fetchOptions = PHFetchOptions()
-        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        
-        let assets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-        var result: [PHAsset] = []
-        assets.enumerateObjects { (asset, _, _) in result.append(asset) }
-        
-        DispatchQueue.main.async {
-            self.photoAssets = result
-            self.currentIndex = 0
-            if !result.isEmpty {
-                self.currentAsset = result[0]
+    func toggleFavorite(_ asset: PHAsset) {
+        PHPhotoLibrary.shared().performChanges({
+            let request = PHAssetChangeRequest(for: asset)
+            request.isFavorite = !asset.isFavorite
+        }) { success, error in
+            DispatchQueue.main.async {
+                if success {
+                    if asset.isFavorite {
+                        snackbarMessage = "Removed from Favorites"
+                        favoritedAssets.removeAll { $0 == asset }
+                    } else {
+                        snackbarMessage = "Added to Favorites 💙"
+                        favoritedAssets.append(asset)
+                    }
+                    showSnackbar = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        showSnackbar = false
+                    }
+                    currentIndex += 1
+                    moveToNextPhoto()
+                } else {
+                    print("Favorite toggle failed: \(error?.localizedDescription ?? "unknown error")")
+                }
             }
         }
     }
-    
+
+
+    func favoritePhoto(_ asset: PHAsset) {
+        let currentlyFavorite = asset.isFavorite
+        
+        PHPhotoLibrary.shared().performChanges({
+            let request = PHAssetChangeRequest(for: asset)
+            request.isFavorite = !currentlyFavorite
+        }) { success, error in
+            DispatchQueue.main.async {
+                if success {
+                    if currentlyFavorite {
+                        favoritedAssets.removeAll { $0 == asset }
+                        snackbarMessage = "Removed from Favorites"
+                    } else {
+                        favoritedAssets.append(asset)
+                        snackbarMessage = "Added to Favorites"
+                    }
+                    showSnackbar = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        showSnackbar = false
+                    }
+                    currentIndex += 1
+                    moveToNextPhoto()
+                } else {
+                    print("Failed to toggle favorite: \(error?.localizedDescription ?? "unknown")")
+                }
+            }
+        }
+    }
+
+
+    func moveToNextPhoto() {
+        if currentIndex >= photoAssets.count {
+            showDeleteButton = true
+        } else {
+            currentAsset = photoAssets[currentIndex]
+        }
+    }
+
     func deleteMarkedPhotos() {
         isDeleting = true
         PHPhotoLibrary.shared().performChanges({
@@ -259,11 +328,11 @@ struct ContentView: View {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                         showSnackbar = false
                     }
-                    
+
                     self.toBeDeleted.removeAll()
                     self.totalSize = 0
                     self.currentIndex = 0
-                    self.loadPhotos()
+                    self.loadPhotos(from: self.selectedAlbum)
                 } else {
                     print("❌ Error: \(error?.localizedDescription ?? "unknown")")
                 }
@@ -271,7 +340,144 @@ struct ContentView: View {
             }
         }
     }
+
+    func resetToAlbumPicker() {
+        self.showAlbumPicker = true
+        self.photoAssets = []
+        self.currentIndex = 0
+        self.toBeDeleted = []
+        self.totalSize = 0
+        self.selectedAlbum = nil
+        self.currentAsset = nil
+        self.showDeleteButton = false
+    }
+
+    func loadPhotos(from album: PHAssetCollection? = nil) {
+        let fetchOptions = PHFetchOptions()
+        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+        let assets: PHFetchResult<PHAsset>
+        if let album = album {
+            assets = PHAsset.fetchAssets(in: album, options: fetchOptions)
+        } else {
+            assets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+        }
+
+        var result: [PHAsset] = []
+        assets.enumerateObjects { (asset, _, _) in result.append(asset) }
+
+        DispatchQueue.main.async {
+            self.photoAssets = result
+            self.currentIndex = 0
+            self.toBeDeleted = []
+            self.totalSize = 0
+            self.currentAsset = result.first
+        }
+    }
+
+    func fetchAlbums() {
+        var all: [AlbumMeta] = []
+
+        let options = PHFetchOptions()
+        let userAlbums = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: nil)
+        let smartAlbums = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .albumRegular, options: nil)
+
+        let allCollections = [userAlbums, smartAlbums].flatMap { result in
+            var temp: [PHAssetCollection] = []
+            result.enumerateObjects { collection, _, _ in temp.append(collection) }
+            return temp
+        }
+
+        let imageManager = PHCachingImageManager()
+
+        for collection in allCollections {
+            let assets = PHAsset.fetchAssets(in: collection, options: options)
+            guard let firstAsset = assets.firstObject else { continue }
+
+            let latestDate = assets.firstObject?.creationDate ?? Date.distantPast
+            let requestOptions = PHImageRequestOptions()
+            requestOptions.deliveryMode = .fastFormat
+            requestOptions.isSynchronous = true
+            requestOptions.isNetworkAccessAllowed = true
+
+            var thumbnail: UIImage?
+            imageManager.requestImage(for: firstAsset,
+                                      targetSize: CGSize(width: 300, height: 300),
+                                      contentMode: .aspectFill,
+                                      options: requestOptions) { result, _ in
+                thumbnail = result
+            }
+
+            all.append(AlbumMeta(
+                collection: collection,
+                thumbnail: thumbnail,
+                assetCount: assets.count,
+                latestDate: latestDate
+            ))
+        }
+
+        self.sortedAlbums = all.sorted { $0.latestDate > $1.latestDate }
+
+        let allAssets = PHAsset.fetchAssets(with: .image, options: options)
+        self.allPhotosCount = allAssets.count
+        if let first = allAssets.firstObject {
+            let reqOptions = PHImageRequestOptions()
+            reqOptions.deliveryMode = .fastFormat
+            reqOptions.isSynchronous = true
+            reqOptions.isNetworkAccessAllowed = true
+            PHImageManager.default().requestImage(for: first,
+                                                  targetSize: CGSize(width: 300, height: 300),
+                                                  contentMode: .aspectFill,
+                                                  options: reqOptions) { result, _ in
+                self.allPhotosThumbnail = result
+            }
+        }
+    }
 }
+
+struct AlbumMeta {
+    let collection: PHAssetCollection
+    let thumbnail: UIImage?
+    let assetCount: Int
+    let latestDate: Date
+}
+
+struct AlbumGridItem: View {
+    let title: String
+    let count: Int
+    let thumbnail: UIImage?
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 6) {
+                if let thumbnail = thumbnail {
+                    Image(uiImage: thumbnail)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: UIScreen.main.bounds.width / 2 - 32, height: 120)
+                        .clipped()
+                        .cornerRadius(12)
+                } else {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.3))
+                        .frame(width: UIScreen.main.bounds.width / 2 - 32, height: 120)
+                        .cornerRadius(12)
+                        .overlay(ProgressView())
+                }
+
+                Text(title)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+
+                Text("\(count) Photos")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+}
+
 struct PhotoAssetImage: View {
     let asset: PHAsset
     @State private var image: UIImage?
