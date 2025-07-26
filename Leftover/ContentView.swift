@@ -1,3 +1,6 @@
+// This file is large, so to keep it structured and clear, we're enhancing its visual style for iOS-native look
+// without altering any functionality. Below is the full modified SwiftUI file.
+
 import SwiftUI
 import Photos
 
@@ -47,8 +50,10 @@ struct ContentView: View {
                 VStack {
                     Spacer()
                     Text(snackbarMessage)
-                        .padding()
-                        .background(Color(.systemGray5))
+                        .font(.subheadline)
+                        .padding(.horizontal)
+                        .padding(.vertical, 10)
+                        .background(.ultraThinMaterial)
                         .cornerRadius(12)
                         .padding(.bottom, 30)
                 }
@@ -76,7 +81,7 @@ struct ContentView: View {
                         self.loadPhotos()
                     }
 
-                    ForEach(sortedAlbums, id: \.collection.localIdentifier) { albumMeta in
+                    ForEach(sortedAlbums, id: \ .collection.localIdentifier) { albumMeta in
                         AlbumGridItem(
                             title: albumMeta.collection.localizedTitle ?? "Unnamed",
                             count: albumMeta.assetCount,
@@ -111,9 +116,9 @@ struct ContentView: View {
                         ZStack(alignment: .topTrailing) {
                             PhotoAssetImage(asset: asset)
                                 .frame(height: 450)
-                                .cornerRadius(20)
-                                .shadow(radius: 10)
-                                .padding()
+                                .cornerRadius(16)
+                                .shadow(radius: 8)
+                                .padding(.horizontal)
                                 .transition(.scale.combined(with: .opacity))
                                 .offset(x: dragOffset.width)
                                 .rotationEffect(.degrees(Double(dragOffset.width / 20)))
@@ -140,11 +145,10 @@ struct ContentView: View {
                                 }
                                 .id(asset.localIdentifier)
 
-                            // 💙 Transparent white heart shown if photo is already favorited
                             if asset.isFavorite {
                                 Image(systemName: "heart.fill")
-                                    .foregroundColor(Color.white.opacity(0.6))
-                                    .font(.title2)
+                                    .foregroundColor(Color.white.opacity(0.5))
+                                    .font(.system(size: 22, weight: .regular))
                                     .padding(.top, 8)
                                     .padding(.trailing, 12)
                             }
@@ -152,7 +156,6 @@ struct ContentView: View {
                     }
                 }
 
-                // 🔄 Undo Button (fixed below image, not inside image)
                 if currentIndex > 0 {
                     Button(action: {
                         withAnimation {
@@ -164,30 +167,34 @@ struct ContentView: View {
                         }
                     }) {
                         Label("Undo", systemImage: "arrow.uturn.left")
-                            .padding(8)
+                            .font(.subheadline)
+                            .padding(.horizontal)
+                            .padding(.vertical, 6)
                             .background(.ultraThinMaterial)
-                            .cornerRadius(8)
+                            .cornerRadius(10)
                     }
                     .padding(.top, 8)
                 }
 
-                Text("→ Swipe right to keep.  ← Swipe left to clean.")
+                Text("\u{2192} Swipe right to keep.  \u{2190} Swipe left to clean.")
+
                     .font(.caption)
-                    .foregroundColor(.gray)
+                    .foregroundColor(.secondary)
 
                 Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundColor(.secondary)
 
                 if !toBeDeleted.isEmpty {
                     Button("Delete \(toBeDeleted.count) Now") {
                         deleteMarkedPhotos()
                     }
+                    .font(.headline)
                     .padding()
                     .frame(maxWidth: .infinity)
-                    .background(Color(UIColor.systemRed))
+                    .background(Color.red)
                     .foregroundColor(.white)
-                    .cornerRadius(10)
+                    .cornerRadius(12)
                     .padding(.horizontal)
                     .padding(.top)
                 }
@@ -195,7 +202,6 @@ struct ContentView: View {
                 Spacer()
             }
 
-            // 📁 Static Change Folder Button (top-left)
             VStack {
                 HStack {
                     Button(action: {
@@ -219,7 +225,6 @@ struct ContentView: View {
         }
     }
 
-
     var deleteConfirmation: some View {
         VStack(spacing: 20) {
             Text("You're done swiping!")
@@ -231,11 +236,12 @@ struct ContentView: View {
             Button("Delete Now") {
                 deleteMarkedPhotos()
             }
+            .font(.headline)
             .padding()
             .frame(maxWidth: .infinity)
-            .background(Color(UIColor.systemRed))
+            .background(Color.red)
             .foregroundColor(.white)
-            .cornerRadius(10)
+            .cornerRadius(12)
             .padding(.horizontal)
 
             Button("Choose Another Folder") {
@@ -243,11 +249,13 @@ struct ContentView: View {
                     resetToAlbumPicker()
                 }
             }
+            .font(.subheadline)
             .padding(.top)
             .foregroundColor(.blue)
         }
     }
-    
+
+  
     func toggleFavorite(_ asset: PHAsset) {
         PHPhotoLibrary.shared().performChanges({
             let request = PHAssetChangeRequest(for: asset)
@@ -513,4 +521,5 @@ struct PhotoAssetImage: View {
         }
     }
 }
+
 
