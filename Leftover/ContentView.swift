@@ -79,16 +79,18 @@ struct ContentView: View {
         VStack {
             Spacer()
 
-            Text("LeftOver")
-                .font(.largeTitle)
-                .fontWeight(.black)
-                .foregroundColor(.primary)
+            VStack(spacing: 6) {
+                Text("LeftOver")
+                    .font(.largeTitle)
+                    .fontWeight(.black)
+                    .foregroundColor(.primary)
 
-            Text("Swipe. Keep. Delete. Done.")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.bottom, 30)
+                Text("Swipe. Keep. Delete. Done.")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(.bottom, 24)
 
             Button(action: {
                 withAnimation {
@@ -110,14 +112,22 @@ struct ContentView: View {
 
             Spacer()
 
-            Text("Built by Kara with care.")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .padding(.bottom, 24)
+            VStack(spacing: 4) {
+                Text("Built by Kara with care.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+
+                Text("No signup. We don’t collect any data.")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+            }
+            .padding(.bottom, 24)
         }
         .multilineTextAlignment(.center)
         .padding()
     }
+
+
 
 
 
@@ -297,19 +307,23 @@ struct ContentView: View {
                     .padding(.top, 8)
                 }
 
-                Text("\u{2192} Swipe right to keep.  \u{2190} Swipe left to clean.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+//                Text("\u{2192} Swipe right to keep.  \u{2190} Swipe left to clean.")
+//                    .font(.caption)
+//                    .foregroundColor(.secondary)
+//
+//                Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
+//                    .font(.footnote)
+//                    .foregroundColor(.secondary)
+            
 
-                Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
-                
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(currentIndex..<min(currentIndex+6, photoAssets.count), id: \.self) { index in
+                        let countToShow = min(7, photoAssets.count)
+                        let visibleIndices = (0..<countToShow).map { (currentIndex + $0) % photoAssets.count }
+
+                        ForEach(visibleIndices, id: \.self) { index in
                             let asset = photoAssets[index]
-                            let isCurrent = index == currentIndex
+                            let isCurrent = asset.localIdentifier == currentAsset?.localIdentifier
 
                             PhotoThumbnailView(asset: asset)
                                 .frame(width: isCurrent ? 52 : 44, height: isCurrent ? 70 : 58)
@@ -328,9 +342,29 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 6)
+
+                    // 👇 ADD THIS BLOCK DIRECTLY TO THE HSTACK
+                    .gesture(
+                        DragGesture()
+                            .onEnded { value in
+                                withAnimation(.easeInOut) {
+                                    if value.translation.width < -50 {
+                                        // swipe left → next image
+                                        if currentIndex < photoAssets.count - 1 {
+                                            currentIndex += 1
+                                            currentAsset = photoAssets[currentIndex]
+                                        }
+                                    } else if value.translation.width > 50 {
+                                        // swipe right → previous image
+                                        if currentIndex > 0 {
+                                            currentIndex -= 1
+                                            currentAsset = photoAssets[currentIndex]
+                                        }
+                                    }
+                                }
+                            }
+                    )
                 }
-
-
 
 
                 if !toBeDeleted.isEmpty {
