@@ -1,8 +1,6 @@
-// This file is large, so to keep it structured and clear, we're enhancing its visual style for iOS-native look
-// without altering any functionality. Below is the full modified SwiftUI file.
-
 import SwiftUI
 import Photos
+import UIKit
 
 struct ContentView: View {
     @State private var photoAssets: [PHAsset] = []
@@ -22,13 +20,23 @@ struct ContentView: View {
     @State private var sortedAlbums: [AlbumMeta] = []
     @State private var albumSearchText: String = ""
     @State private var favoritedAssets: [PHAsset] = []
+    @State private var showHeartAnimation = false
+    @State private var heartScale: CGFloat = 1.0
+    @State private var isAddingToFavorites: Bool = true
+    @State private var shakeOffset: CGFloat = 0
+    @State private var heartRotation: Double = 0
+    @State private var heartOpacity: Double = 1.0
+    @State private var showSplashScreen = true
+
     @GestureState private var dragOffset: CGSize = .zero
 
     var body: some View {
         ZStack {
             Color(.systemBackground).ignoresSafeArea()
 
-            if showAlbumPicker {
+            if showSplashScreen {
+                splashScreenView
+            } else if showAlbumPicker {
                 albumPickerView
             } else if currentIndex < photoAssets.count {
                 swipeCard
@@ -60,12 +68,58 @@ struct ContentView: View {
                 .transition(.move(edge: .bottom))
             }
         }
+
         .onChange(of: currentIndex) { newIndex in
             if newIndex < photoAssets.count {
                 currentAsset = photoAssets[newIndex]
             }
         }
     }
+    var splashScreenView: some View {
+        VStack {
+            Spacer()
+
+            Text("LeftOver")
+                .font(.largeTitle)
+                .fontWeight(.black)
+                .foregroundColor(.primary)
+
+            Text("Swipe. Keep. Delete. Done.")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.bottom, 30)
+
+            Button(action: {
+                withAnimation {
+                    showSplashScreen = false
+                    showAlbumPicker = true
+                }
+            }) {
+                Text("Start Organizing")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                    )
+            }
+
+            Spacer()
+
+            Text("Built by Kara with care.")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .padding(.bottom, 24)
+        }
+        .multilineTextAlignment(.center)
+        .padding()
+    }
+
+
 
     var albumPickerView: some View {
         NavigationView {
@@ -141,9 +195,76 @@ struct ContentView: View {
                                         }
                                 )
                                 .onTapGesture(count: 2) {
+                                    let generator = UIImpactFeedbackGenerator(style: .light)
+                                    generator.impactOccurred()
+
+                                    guard let asset = currentAsset else { return }
+                                    isAddingToFavorites = !asset.isFavorite
+                                    showHeartAnimation = true
+
+                                    if isAddingToFavorites {
+                                        // Add to favorites
+                                        heartOpacity = 1.0
+                                        heartRotation = 0
+                                        heartScale = 0.8
+
+                                        withAnimation(.interpolatingSpring(stiffness: 100, damping: 6)) {
+                                            heartScale = 1.4
+                                        }
+                                    } else {
+                                        // Remove from favorites
+                                        heartScale = 1.0
+                                        heartOpacity = 0.6
+
+                                        // Wiggle and tilt
+                                        withAnimation(Animation.linear(duration: 0.15).repeatCount(4, autoreverses: true)) {
+                                            shakeOffset = 6
+                                            heartRotation = -10
+                                        }
+
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                                            shakeOffset = 0
+                                            heartRotation = 0
+
+                                            // Shrink and fade
+                                            withAnimation(.easeInOut(duration: 0.4)) {
+                                                heartScale = 0.6
+                                                heartOpacity = 0.0
+                                            }
+                                        }
+                                    }
+
+                                    // Toggle favorite state
                                     toggleFavorite(asset)
+
+                                    // Reset everything after animation
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                        showHeartAnimation = false
+                                        heartOpacity = 1.0
+                                        heartScale = 1.0
+                                        heartRotation = 0
+                                        shakeOffset = 0
+                                    }
                                 }
+
+
                                 .id(asset.localIdentifier)
+                                .overlay(
+                                    Group {
+                                        if showHeartAnimation {
+                                            Image(systemName: "heart.fill")
+                                                .resizable()
+                                                .foregroundColor(Color.blue)
+                                                .frame(width: 30, height: 30)
+                                                .scaleEffect(heartScale)
+                                                .rotationEffect(.degrees(heartRotation))
+                                                .offset(x: shakeOffset)
+                                                .opacity(heartOpacity)
+                                        }
+                                    }
+                                )
+
+
 
                             if asset.isFavorite {
                                 Image(systemName: "heart.fill")
@@ -177,13 +298,40 @@ struct ContentView: View {
                 }
 
                 Text("\u{2192} Swipe right to keep.  \u{2190} Swipe left to clean.")
-
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
                     .font(.footnote)
                     .foregroundColor(.secondary)
+                
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(currentIndex..<min(currentIndex+6, photoAssets.count), id: \.self) { index in
+                            let asset = photoAssets[index]
+                            let isCurrent = index == currentIndex
+
+                            PhotoThumbnailView(asset: asset)
+                                .frame(width: isCurrent ? 52 : 44, height: isCurrent ? 70 : 58)
+                                .cornerRadius(isCurrent ? 8 : 6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: isCurrent ? 8 : 6)
+                                        .stroke(isCurrent ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
+                                )
+                                .onTapGesture {
+                                    withAnimation(.easeInOut) {
+                                        currentIndex = index
+                                        currentAsset = asset
+                                    }
+                                }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 6)
+                }
+
+
+
 
                 if !toBeDeleted.isEmpty {
                     Button("Delete \(toBeDeleted.count) Now") {
@@ -209,7 +357,7 @@ struct ContentView: View {
                             resetToAlbumPicker()
                         }
                     }) {
-                        Label("Change Folder", systemImage: "chevron.backward")
+                        Label("Albums", systemImage: "chevron.backward")
                             .font(.subheadline)
                             .padding(10)
                             .background(.ultraThinMaterial)
@@ -224,6 +372,7 @@ struct ContentView: View {
             .padding(.top, 10)
         }
     }
+
 
     var deleteConfirmation: some View {
         VStack(spacing: 20) {
@@ -264,13 +413,11 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 if success {
                     if asset.isFavorite {
-                        snackbarMessage = "Removed from Favorites"
                         favoritedAssets.removeAll { $0 == asset }
                     } else {
-                        snackbarMessage = "Added to Favorites 💙"
                         favoritedAssets.append(asset)
                     }
-                    showSnackbar = true
+
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                         showSnackbar = false
                     }
@@ -300,10 +447,10 @@ struct ContentView: View {
                         favoritedAssets.append(asset)
                         snackbarMessage = "Added to Favorites"
                     }
-                    showSnackbar = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        showSnackbar = false
-                    }
+//                    showSnackbar = true
+//                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+//                        showSnackbar = false
+//                    }
                     currentIndex += 1
                     moveToNextPhoto()
                 } else {
@@ -522,4 +669,37 @@ struct PhotoAssetImage: View {
     }
 }
 
+struct PhotoThumbnailView: View {
+    let asset: PHAsset
+    @State private var image: UIImage?
+
+    var body: some View {
+        Group {
+            if let image = image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .clipped()
+            } else {
+                Color.gray.opacity(0.2)
+                    .overlay(ProgressView())
+            }
+        }
+        .onAppear {
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .fastFormat
+            options.isSynchronous = false
+            options.isNetworkAccessAllowed = true
+
+            PHImageManager.default().requestImage(
+                for: asset,
+                targetSize: CGSize(width: 80, height: 80),
+                contentMode: .aspectFill,
+                options: options
+            ) { result, _ in
+                image = result
+            }
+        }
+    }
+}
 
