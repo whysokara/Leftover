@@ -24,9 +24,12 @@ struct ContentView: View {
     @State private var heartScale: CGFloat = 1.0
     @State private var isAddingToFavorites: Bool = true
     @State private var shakeOffset: CGFloat = 0
+    @State private var pulse = false
     @State private var heartRotation: Double = 0
     @State private var heartOpacity: Double = 1.0
     @State private var showSplashScreen = true
+    @State private var shouldPulseHeart = false
+    @State private var bgColor: Color = .black
 
     @GestureState private var dragOffset: CGSize = .zero
 
@@ -84,9 +87,15 @@ struct ContentView: View {
                     .font(.largeTitle)
                     .fontWeight(.black)
                     .foregroundColor(.primary)
+                    .scaleEffect(pulse ? 1.0 : 0.95)
+                    .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
+                    .onAppear {
+                        pulse = true
+                        
+                    }
 
                 Text("Swipe. Keep. Delete. Done.")
-                    .font(.subheadline)
+                    .font(.callout)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)
             }
@@ -103,38 +112,58 @@ struct ContentView: View {
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
                     .padding(.horizontal, 28)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 14)
+                    .frame(minHeight: 44)
+                    .buttonStyle(ScaleButtonStyle())
                     .background(
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
                     )
+                    .contentShape(Rectangle())
             }
+            .accessibilityAddTraits(.isButton)
 
             Spacer()
 
             VStack(spacing: 4) {
-                Text("Built by Kara with care.")
-                    .font(.footnote)
-                    .foregroundColor(.secondary)
+                HStack(spacing: 4) {
+                    Text("Built by")
+                        .font(.footnote)
+                        .dynamicTypeSize(.small ... .xxLarge)
+                        .foregroundColor(.secondary)
+
+                    Link("Kara", destination: URL(string: "https://x.com/whysokara")!)
+                        .font(.footnote)
+                        .dynamicTypeSize(.small ... .xxLarge)
+                        .foregroundColor(.accentColor) // changed from .blue
+                        .underline()
+                }
 
                 Text("No signup. We don’t collect any data.")
                     .font(.footnote)
                     .foregroundColor(.secondary)
             }
-            .padding(.bottom, 24)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Built by Kara. No signup required. We don’t collect any data.")
+            .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 60 : 32)
         }
         .multilineTextAlignment(.center)
         .padding()
+        .opacity(showSplashScreen ? 1 : 0)
+        .scaleEffect(showSplashScreen ? 1 : 0.96)
+        .animation(.easeInOut(duration: 0.3), value: showSplashScreen) // Smooth transition
     }
-
-
-
 
 
     var albumPickerView: some View {
         NavigationView {
             ScrollView {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 16),
+                    GridItem(.flexible(), spacing: 16)
+                ], spacing: 16) {
+
+                    // All Photos tile
                     AlbumGridItem(
                         title: "All Photos",
                         count: allPhotosCount,
@@ -145,7 +174,8 @@ struct ContentView: View {
                         self.loadPhotos()
                     }
 
-                    ForEach(sortedAlbums, id: \ .collection.localIdentifier) { albumMeta in
+                    // Album List
+                    ForEach(sortedAlbums, id: \.collection.localIdentifier) { albumMeta in
                         AlbumGridItem(
                             title: albumMeta.collection.localizedTitle ?? "Unnamed",
                             count: albumMeta.assetCount,
@@ -157,9 +187,10 @@ struct ContentView: View {
                         }
                     }
                 }
-                .padding()
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
             }
-            .navigationTitle("Choose Folder")
+            .navigationTitle("Albums")
             .onAppear {
                 PHPhotoLibrary.requestAuthorization { status in
                     if status == .authorized || status == .limited {
@@ -169,6 +200,8 @@ struct ContentView: View {
             }
         }
     }
+
+
 
     var swipeCard: some View {
         ZStack {
@@ -213,20 +246,17 @@ struct ContentView: View {
                                     showHeartAnimation = true
 
                                     if isAddingToFavorites {
-                                        // Add to favorites
                                         heartOpacity = 1.0
                                         heartRotation = 0
                                         heartScale = 0.8
 
                                         withAnimation(.interpolatingSpring(stiffness: 100, damping: 6)) {
-                                            heartScale = 1.4
+                                            heartScale = 1.2
                                         }
                                     } else {
-                                        // Remove from favorites
                                         heartScale = 1.0
                                         heartOpacity = 0.6
 
-                                        // Wiggle and tilt
                                         withAnimation(Animation.linear(duration: 0.15).repeatCount(4, autoreverses: true)) {
                                             shakeOffset = 6
                                             heartRotation = -10
@@ -236,7 +266,6 @@ struct ContentView: View {
                                             shakeOffset = 0
                                             heartRotation = 0
 
-                                            // Shrink and fade
                                             withAnimation(.easeInOut(duration: 0.4)) {
                                                 heartScale = 0.6
                                                 heartOpacity = 0.0
@@ -244,27 +273,29 @@ struct ContentView: View {
                                         }
                                     }
 
-                                    // Toggle favorite state
                                     toggleFavorite(asset)
 
-                                    // Reset everything after animation
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                                         showHeartAnimation = false
-                                        heartOpacity = 1.0
-                                        heartScale = 1.0
+                                        heartOpacity = 0.7
+                                        heartScale = 0.8
                                         heartRotation = 0
                                         shakeOffset = 0
                                     }
                                 }
 
-
                                 .id(asset.localIdentifier)
+                                .accessibilityElement()
+                                .accessibilityLabel(asset.isFavorite ? "Photo \(currentIndex + 1), Favorited" : "Photo \(currentIndex + 1)")
+                                .accessibilityHint(asset.isFavorite ? "Double tap to remove from favorites" : "Double tap to add to favorites")
+                                .accessibilityAddTraits([.isImage])
+
                                 .overlay(
                                     Group {
                                         if showHeartAnimation {
                                             Image(systemName: "heart.fill")
                                                 .resizable()
-                                                .foregroundColor(Color.blue)
+                                                .foregroundColor(Color.accentColor)
                                                 .frame(width: 30, height: 30)
                                                 .scaleEffect(heartScale)
                                                 .rotationEffect(.degrees(heartRotation))
@@ -273,8 +304,6 @@ struct ContentView: View {
                                         }
                                     }
                                 )
-
-
 
                             if asset.isFavorite {
                                 Image(systemName: "heart.fill")
@@ -299,22 +328,25 @@ struct ContentView: View {
                     }) {
                         Label("Undo", systemImage: "arrow.uturn.left")
                             .font(.subheadline)
+                            .dynamicTypeSize(.small ... .xxLarge)
                             .padding(.horizontal)
                             .padding(.vertical, 6)
                             .background(.ultraThinMaterial)
                             .cornerRadius(10)
                     }
                     .padding(.top, 8)
+                    .accessibilityLabel("Undo last action")
+                    .accessibilityHint("Restores the last skipped or deleted photo")
+                    .accessibilityAddTraits(.isButton)
                 }
-
-//                Text("\u{2192} Swipe right to keep.  \u{2190} Swipe left to clean.")
-//                    .font(.caption)
-//                    .foregroundColor(.secondary)
-//
-//                Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
-//                    .font(.footnote)
-//                    .foregroundColor(.secondary)
-            
+                
+//                                Text("\u{2192} Swipe right to keep.  \u{2190} Swipe left to clean.")
+//                                    .font(.caption)
+//                                    .foregroundColor(.secondary)
+//                
+//                                Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
+//                                    .font(.footnote)
+//                                    .foregroundColor(.secondary)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
@@ -338,24 +370,23 @@ struct ContentView: View {
                                         currentAsset = asset
                                     }
                                 }
+                                .accessibilityElement()
+                                .accessibilityLabel("Thumbnail of photo \(index + 1)")
+                                .accessibilityAddTraits(.isButton)
                         }
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 6)
-
-                    // 👇 ADD THIS BLOCK DIRECTLY TO THE HSTACK
                     .gesture(
                         DragGesture()
                             .onEnded { value in
                                 withAnimation(.easeInOut) {
                                     if value.translation.width < -50 {
-                                        // swipe left → next image
                                         if currentIndex < photoAssets.count - 1 {
                                             currentIndex += 1
                                             currentAsset = photoAssets[currentIndex]
                                         }
                                     } else if value.translation.width > 50 {
-                                        // swipe right → previous image
                                         if currentIndex > 0 {
                                             currentIndex -= 1
                                             currentAsset = photoAssets[currentIndex]
@@ -366,12 +397,12 @@ struct ContentView: View {
                     )
                 }
 
-
                 if !toBeDeleted.isEmpty {
                     Button("Delete \(toBeDeleted.count) Now") {
                         deleteMarkedPhotos()
                     }
                     .font(.headline)
+                    .dynamicTypeSize(.small ... .xxLarge)
                     .padding()
                     .frame(maxWidth: .infinity)
                     .background(Color.red)
@@ -379,6 +410,9 @@ struct ContentView: View {
                     .cornerRadius(12)
                     .padding(.horizontal)
                     .padding(.top)
+                    .accessibilityLabel("Delete \(toBeDeleted.count) selected photo\(toBeDeleted.count > 1 ? "s" : "")")
+                    .accessibilityHint("Deletes all selected photos permanently")
+                    .accessibilityAddTraits(.isButton)
                 }
 
                 Spacer()
@@ -398,6 +432,8 @@ struct ContentView: View {
                             .cornerRadius(10)
                     }
                     .padding(.leading, 16)
+                    .accessibilityLabel("Back to albums")
+                    .accessibilityAddTraits(.isButton)
 
                     Spacer()
                 }
@@ -667,6 +703,7 @@ struct AlbumGridItem: View {
     }
 }
 
+
 struct PhotoAssetImage: View {
     let asset: PHAsset
     @State private var image: UIImage?
@@ -736,4 +773,13 @@ struct PhotoThumbnailView: View {
         }
     }
 }
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
+            .opacity(configuration.isPressed ? 0.9 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
 
