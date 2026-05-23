@@ -44,9 +44,42 @@ So I built **Leftover** in SwiftUI as a weekend project to solve one simple prob
 
 ## 🛠 Tech Stack
 
-- SwiftUI
-- PhotoKit
-- Xcode 15+
+- **Swift** 5.5+
+- **SwiftUI** for UI
+- **PhotoKit** for photo library access
+- **Xcode** 15+
+- **iOS** 16+
+
+---
+
+## 🚀 Setup & Run
+
+### Requirements
+
+- Xcode 15 or later
+- iOS 16+ device (iPhone or iPad)
+- A real device recommended (simulator photo deletion doesn't work due to sandboxing)
+
+### Instructions
+
+1. Clone the repo:
+   ```bash
+   git clone <repo-url>
+   cd leftover
+   ```
+
+2. Open the Xcode project:
+   ```bash
+   open Leftover.xcodeproj
+   ```
+
+3. Select your target device in Xcode and hit Run (`Cmd+R`)
+
+4. Grant photo library access when the app asks
+
+5. Pick an album and start swiping!
+
+**Note:** Photo deletion requires a real device. If you test on the simulator, swipes won't actually delete photos from the library due to iOS sandboxing.
 
 ---
 
@@ -54,12 +87,5 @@ So I built **Leftover** in SwiftUI as a weekend project to solve one simple prob
 
 Made with love by [Kara](https://x.com/whysokara) – 2025  
 This project was a fun solo build to scratch an itch, and it's still evolving.
-
----
-
-## 🚀 Try It
-
-You can clone the repo and run it on a real iPhone via Xcode.  
-*(Note: Deletion features may not work properly on the iOS Simulator due to sandboxing.)*
 
 ---
