@@ -4,145 +4,63 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Leftover** is a minimalist iOS photo gallery cleaner built with SwiftUI. Users swipe left to delete photos and right to keep them. It's a local-only app—no cloud sync, no login required.
-
-## Tech Stack
-
-- **Language**: Swift 5.5+
-- **UI Framework**: SwiftUI
-- **Photo Access**: PhotoKit / UIKit
-- **Minimum iOS**: iOS 16+
-- **IDE**: Xcode 15+
+**Leftover** is a minimalist iOS photo gallery cleaner built with SwiftUI. Users swipe left to mark photos for deletion and right to keep them. Local-only — no cloud sync, no login, no data collection. Swift 5.5+, SwiftUI, PhotoKit, iOS 16+, Xcode 15+.
 
 ## Building & Running
 
-### Prerequisites
-
-- Xcode 15 or later
-- iOS 16+ device or simulator (note: delete operations don't work properly in simulator due to sandboxing)
-
-### Build & Run
-
 ```bash
-# Open the project in Xcode
 open Leftover.xcodeproj
-
-# Or build from command line
-xcodebuild -scheme Leftover -configuration Debug
 ```
 
-**For real device testing**: Connect an iPhone and run from Xcode. Photo deletion requires a real device because the simulator sandboxes photo library writes.
+Build and run from Xcode (`Cmd+R`). There are no automated tests, no linter, and no package dependencies — the whole app is three Swift files.
 
-## Codebase Structure
+- `xcodebuild` from the terminal fails on this machine unless the active developer directory points at Xcode (currently it points at CommandLineTools). Fix with `sudo xcode-select -s /Applications/Xcode.app` if CLI builds are needed; otherwise just build in Xcode.
+- **Photo deletion requires a real device.** The simulator sandboxes photo library writes, so delete operations silently fail there. Test the golden path on an iPhone: Splash → Album Picker → swipe a few → Delete Now → verify in Camera Roll.
+- Photo library permission is cached per bundle ID; if permissions get stuck, uninstall and reinstall the app. Clean build (`Cmd+Shift+K`) after changing Info.plist keys.
 
-### Core Files
+## Architecture
 
-- **LeftoverApp.swift**: App entry point. Simple `WindowGroup` setup with `ContentView()` as root.
-- **ContentView.swift** (785 lines): Main UI hub. Contains all view hierarchy, state management, and gesture handling.
-  - `splashScreenView`: Welcome screen with app name and tagline
-  - `albumPickerView`: Grid of photo albums to select from
-  - `swipeCard`: Main swiping interface for photos
-  - `deleteConfirmation`: Final confirmation before batch delete
-  - Multiple gesture handlers for swipe/drag interactions
-- **PhotoManager.swift**: Encapsulates PhotoKit operations.
-  - `requestPhotoAccess()`: Handles permission requests
-  - `fetchPhotos()`: Loads all photos (or filtered by album) from the library, resizes to 600x600
-  - `deleteImage()`: Actually removes photo from library
-  - `keepImage()`: Removes from UI view only (not from library)
+### The real structure (read this before trusting file names)
 
-### State Management
+- **ContentView.swift (~785 lines)** is the entire app: all views, all state, and **all live PhotoKit operations** (`loadPhotos`, `fetchAlbums`, `deleteMarkedPhotos`, `toggleFavorite`). This centralization is intentional for a small project.
+- **PhotoManager.swift is dead code.** It looks like the PhotoKit layer, but ContentView never instantiates it — it's a leftover from an earlier design. Don't add features there expecting them to run; either wire it up deliberately or keep working in ContentView.
+- **LeftoverApp.swift** is a bare `WindowGroup { ContentView() }`.
 
-ContentView uses `@State` for local UI state:
-- `photoAssets`: Array of `PHAsset` objects being reviewed
-- `currentIndex`: Index of currently displayed photo
-- `toBeDeleted`: Photos marked for deletion
-- `showAlbumPicker`, `showSplashScreen`, `isDeleting`: View visibility flags
-- Animation/gesture states: `heartScale`, `pulse`, `shakeOffset`, `bgColor`, etc.
+### Screen flow
 
-PhotoManager uses `@Published` properties to expose photo arrays to SwiftUI.
+One `ZStack` in `ContentView.body` switches between computed-property views based on `@State` flags, in priority order:
 
-## Key Architectural Decisions
+1. `splashScreenView` (`showSplashScreen`) — welcome screen with pulse animation
+2. `albumPickerView` (`showAlbumPicker`) — requests photo permission in `.onAppear`, then shows a 2-column `LazyVGrid` of albums plus an "All Photos" tile
+3. `swipeCard` — shown while `currentIndex < photoAssets.count`; the main review UI
+4. `deleteConfirmation` (`showDeleteButton`) — end-of-album batch-delete prompt
 
-1. **Centralized UI in ContentView**: Rather than breaking into smaller components, most logic lives in ContentView for simplicity. This is intentional for a small project.
+Overlays for `isDeleting` spinner and `showSnackbar` toast sit on top of whichever screen is active.
 
-2. **Lazy Photo Loading**: Photos are fetched from PhotoKit in the background and resized to 600x600 for performance. The original assets are kept for deletion operations.
+To add a screen, follow the same pattern: a computed `var myView: some View`, a `@State` visibility flag, a branch in the `ZStack`, and `withAnimation { flag = true }` to transition.
 
-3. **Real vs. UI Deletion**: "Keep" moves a photo out of the current view without deleting from library. "Delete" marks for batch deletion via `PHPhotoLibrary.performChanges()`.
+### Swipe / delete model
 
-4. **Album Picker**: Must request photo library access before loading. Users pick an album (or "All Photos") and then review images from that collection.
+- Swiping **left** appends the asset to `toBeDeleted` and advances `currentIndex`; swiping **right** just advances. Nothing touches the library during swiping.
+- Actual deletion happens only in `deleteMarkedPhotos()` via a **single batch** `PHPhotoLibrary.performChanges` (never delete one-by-one), triggered by the "Delete N Now" button or the end-of-album confirmation.
+- **Undo** decrements `currentIndex` and removes the asset from `toBeDeleted` / `favoritedAssets` — it works because nothing was really deleted yet.
+- **Double-tap** toggles the PHAsset's favorite flag (with heart animation) and advances to the next photo.
 
-5. **Animations**: Heavy use of SwiftUI `withAnimation()` for UI transitions and `.animation()` modifiers for continuous effects (pulse, scale, rotation). See splash screen and heart animations for examples.
+### Image loading
 
-## Common Development Tasks
+Full-size images are *not* preloaded into an array. `PhotoAssetImage` (800×800) and `PhotoThumbnailView` (80×80) are small views that each fetch their own image from `PHImageManager` in `.onAppear`, keyed by `.id(asset.localIdentifier)` so SwiftUI refetches when the asset changes. Album thumbnails are fetched at 300×300 in `fetchAlbums()`.
 
-### Adding a New View
+### Conventions
 
-1. Create a computed var property in ContentView (e.g., `var myNewView: some View { ... }`)
-2. Add a new `@State` flag to control visibility (e.g., `@State private var showMyView = false`)
-3. Update the main `ZStack` logic to conditionally show the view
-4. Use `withAnimation { showMyView = true }` to transition
+- All UI updates from PhotoKit completion handlers must hop to `DispatchQueue.main.async`.
+- `withAnimation { ... }` for one-off animated state changes; `.animation(_:value:)` modifiers for continuous effects (pulse, heart, shake).
+- `currentAsset` must be kept in sync with `photoAssets[currentIndex]` whenever the index changes (there's an `.onChange(of: currentIndex)` for this, but gesture handlers also set it directly).
 
-### Modifying Photo Fetching
+## Known quirks
 
-- Edit `PhotoManager.fetchPhotos()` to change sort order, filtering, or request options
-- Changes to target image size are in `requestImage(targetSize:...)`
-- Remember to dispatch UI updates back to `DispatchQueue.main`
+- Info.plist declares `NSPhotoLibraryUsageDescription` **twice** (duplicate key) alongside `NSPhotoLibraryAddUsageDescription`. Both usage-description keys are required for photo access; clean up the duplicate if editing that file.
+- `favoritePhoto(_:)` in ContentView is a near-duplicate of `toggleFavorite(_:)` and appears unused from the UI.
 
-### Adding Gesture/Animation
+## Future features (from README)
 
-- Swipe/drag gestures live in the `swipeCard` view
-- Use `.gesture()` modifier to attach `DragGesture` or similar
-- State updates inside gesture handlers automatically trigger re-renders
-- Wrap updates in `withAnimation()` to animate the change
-
-### Debugging Photo Library Access
-
-- Check Info.plist: NSPhotoLibraryUsageDescription and NSPhotoLibraryAddUsageDescription must be set
-- Test on a real device (simulator doesn't fully support photo library writes)
-- Use Xcode's Debug → View Hierarchy to inspect SwiftUI state in the simulator
-
-## Important Notes
-
-1. **No PhotoManager singleton**: PhotoManager is instantiated fresh in ContentView (or passed via dependency injection). This avoids tight coupling.
-
-2. **Photo indices are tied**: `assets` and `images` arrays must stay in sync. When you delete or keep a photo, update both arrays.
-
-3. **Main thread dispatch**: All UI updates from PhotoKit callbacks must dispatch to `DispatchQueue.main.async { ... }`.
-
-4. **Animation syntax**: Use `withAnimation { ... }` for one-off state changes that should animate. Use `.animation()` modifiers for continuous bindings.
-
-5. **Xcode build quirks**: 
-   - Always do a clean build (`Cmd+Shift+K`) if you change Info.plist keys
-   - Photo library permissions are cached per app bundle ID; uninstall and reinstall if permissions are stuck
-
-## Testing & QA
-
-- **Manual testing only**: No automated tests currently. Test by running on device.
-- **Golden path**: Splash → Album Picker → Swipe a few → Confirm delete → Check Camera Roll
-- **Edge cases**: Empty albums, single photo, rapid swiping, toggling favorites
-- **Undo feature**: If implemented, verify it properly re-adds deleted photos and indices
-
-## Performance Considerations
-
-- **Photo resize**: 600x600 is chosen as a balance between UI quality and memory. Adjust if needed.
-- **Batch deletion**: Deleting multiple photos via one `performChanges()` is efficient. Don't delete one-by-one.
-- **Lazy grid**: Album picker uses `LazyVGrid` with 2 columns. Thumbnails are cached or regenerated per album.
-
-## Future Features (from README)
-
-- Batch review mode
-- Auto-suggestions (blurry/duplicate/screenshot detection)
-- Dark mode
-- Onboarding flow
-- Custom swipe action settings
-- Video support
-
-When implementing any of these, follow the established patterns: add state to ContentView, create new view properties, and dispatch PhotoKit work to background threads.
-
-## Useful Resources
-
-- [SwiftUI Documentation](https://developer.apple.com/documentation/swiftui)
-- [PhotoKit Documentation](https://developer.apple.com/documentation/photokit)
-- [PHAsset & PHAssetChangeRequest](https://developer.apple.com/documentation/photokit/phasset)
-- Xcode Help: `Cmd+?` in Xcode, search "SwiftUI" or "PhotoKit"
-
+Batch review mode; auto-suggestions for blurry/duplicate/screenshot photos; dark mode; onboarding; settings screen for custom swipe actions; video support. Follow the established pattern: state + computed view in ContentView, PhotoKit work off the main thread.
