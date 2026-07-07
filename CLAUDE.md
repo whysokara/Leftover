@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 open Leftover.xcodeproj
 ```
 
-Build and run from Xcode (`Cmd+R`). There are no automated tests, no linter, and no package dependencies — the whole app is three Swift files.
+Build and run from Xcode (`Cmd+R`). There are no automated tests, no linter, and no package dependencies — the whole app is three Swift files (`ContentView.swift`, `Theme.swift`, `LeftoverApp.swift`).
 
 - `xcodebuild` from the terminal fails on this machine unless the active developer directory points at Xcode (currently it points at CommandLineTools). Fix with `sudo xcode-select -s /Applications/Xcode.app` if CLI builds are needed; otherwise just build in Xcode.
 - **Photo deletion requires a real device.** The simulator sandboxes photo library writes, so delete operations silently fail there. Test the golden path on an iPhone: Splash → Album Picker → swipe a few → Delete Now → verify in Camera Roll.
@@ -20,10 +20,9 @@ Build and run from Xcode (`Cmd+R`). There are no automated tests, no linter, and
 
 ## Architecture
 
-### The real structure (read this before trusting file names)
+### The real structure
 
-- **ContentView.swift (~785 lines)** is the entire app: all views, all state, and **all live PhotoKit operations** (`loadPhotos`, `fetchAlbums`, `deleteMarkedPhotos`, `toggleFavorite`). This centralization is intentional for a small project.
-- **PhotoManager.swift is dead code.** It looks like the PhotoKit layer, but ContentView never instantiates it — it's a leftover from an earlier design. Don't add features there expecting them to run; either wire it up deliberately or keep working in ContentView.
+- **ContentView.swift** is the entire app: all views, all state, and **all live PhotoKit operations** (`loadPhotos`, `fetchAlbums`, `deleteMarkedPhotos`, `toggleFavorite`). This centralization is intentional for a small project.
 - **LeftoverApp.swift** is a bare `WindowGroup { ContentView() }`.
 
 ### Screen flow
@@ -31,20 +30,22 @@ Build and run from Xcode (`Cmd+R`). There are no automated tests, no linter, and
 One `ZStack` in `ContentView.body` switches between computed-property views based on `@State` flags, in priority order:
 
 1. `splashScreenView` (`showSplashScreen`) — welcome screen with pulse animation
-2. `albumPickerView` (`showAlbumPicker`) — requests photo permission in `.onAppear`, then shows a 2-column `LazyVGrid` of albums plus an "All Photos" tile
-3. `swipeCard` — shown while `currentIndex < photoAssets.count`; the main review UI
-4. `deleteConfirmation` (`showDeleteButton`) — end-of-album batch-delete prompt
+2. `albumPickerView` (`showAlbumPicker`) — requests photo permission in `.onAppear` (`.readWrite`); shows `permissionDeniedView` (with an Open Settings button) when denied/restricted, a limited-access banner when `.limited`, otherwise a 2-column `LazyVGrid` of albums plus an "All Photos" tile
+3. `ProgressView` while `isLoadingPhotos` (album contents load on a background queue)
+4. `swipeCard` — shown while `currentIndex < photoAssets.count`; the main review UI
+5. `deleteConfirmation` (`showDeleteButton`) — end-of-album prompt; shows a "nothing marked" done-state when `toBeDeleted` is empty
+6. `emptyAlbumView` — fallthrough for an empty/emptied album, with a Back to Albums button
 
-Overlays for `isDeleting` spinner and `showSnackbar` toast sit on top of whichever screen is active.
+Overlays for `isDeleting` spinner and `showSnackbar` toast sit on top of whichever screen is active. Toasts go through the `showToast(_:)` helper (animated in, auto-dismiss after 3s).
 
 To add a screen, follow the same pattern: a computed `var myView: some View`, a `@State` visibility flag, a branch in the `ZStack`, and `withAnimation { flag = true }` to transition.
 
 ### Swipe / delete model
 
-- Swiping **left** appends the asset to `toBeDeleted` and advances `currentIndex`; swiping **right** just advances. Nothing touches the library during swiping.
-- Actual deletion happens only in `deleteMarkedPhotos()` via a **single batch** `PHPhotoLibrary.performChanges` (never delete one-by-one), triggered by the "Delete N Now" button or the end-of-album confirmation.
-- **Undo** decrements `currentIndex` and removes the asset from `toBeDeleted` / `favoritedAssets` — it works because nothing was really deleted yet.
-- **Double-tap** toggles the PHAsset's favorite flag (with heart animation) and advances to the next photo.
+- Swiping **left** appends the asset to `toBeDeleted`, adds its file size to `totalSize` (via `assetFileSize`, used for the "freed up X" toast), and advances `currentIndex`; swiping **right** just advances. Nothing touches the library during swiping.
+- Actual deletion happens only in `deleteMarkedPhotos()` via a **single batch** `PHPhotoLibrary.performChanges` (never delete one-by-one), triggered by the "Delete N Now" button or the end-of-album confirmation. On failure (including the user tapping "Don't Allow" on the system dialog), all state is kept so they can retry, and a toast says so.
+- **Undo** decrements `currentIndex` and removes the asset from `toBeDeleted` (refunding its size) — it works because nothing was really deleted yet.
+- **Double-tap** toggles the PHAsset's favorite flag (with heart animation). Because `PHAsset` objects are immutable snapshots, `toggleFavorite` re-fetches the asset by `localIdentifier` afterward and swaps it into `photoAssets`/`currentAsset` — keep this pattern for any other `performChanges` that mutates asset properties.
 
 ### Image loading
 
@@ -52,14 +53,14 @@ Full-size images are *not* preloaded into an array. `PhotoAssetImage` (800×800)
 
 ### Conventions
 
-- All UI updates from PhotoKit completion handlers must hop to `DispatchQueue.main.async`.
+- All UI updates from PhotoKit completion handlers must hop to `DispatchQueue.main.async`. Library scans (`loadPhotos`, `fetchAlbums`) run on `DispatchQueue.global(qos: .userInitiated)` and publish results on main.
 - `withAnimation { ... }` for one-off animated state changes; `.animation(_:value:)` modifiers for continuous effects (pulse, heart, shake).
 - `currentAsset` must be kept in sync with `photoAssets[currentIndex]` whenever the index changes (there's an `.onChange(of: currentIndex)` for this, but gesture handlers also set it directly).
+- Don't cap Dynamic Type with `.dynamicTypeSize(...)` ranges — accessibility sizes must work.
 
-## Known quirks
+## Design system
 
-- Info.plist declares `NSPhotoLibraryUsageDescription` **twice** (duplicate key) alongside `NSPhotoLibraryAddUsageDescription`. Both usage-description keys are required for photo access; clean up the duplicate if editing that file.
-- `favoritePhoto(_:)` in ContentView is a near-duplicate of `toggleFavorite(_:)` and appears unused from the UI.
+The "Light Table / Darkroom" identity is **implemented** in `Theme.swift`: color tokens (warm neutrals, safelight-amber accent, KEEP/TOSS semantic colors), SF Rounded display type, named springs (`Theme.flick` / `.settle` / `.pop`), `Haptics` helpers, three button styles (`PrimaryButtonStyle`, `TossButtonStyle`, `QuietButtonStyle`), and the `DecisionStamp` swipe overlay. `DESIGN.md` is the spec; `AUDIT.md` records the July 2026 audit. Style all new UI through `Theme` tokens — never hardcode colors, fonts, radii, or animation curves in views. The asset-catalog `AccentColor` is set to safelight amber (light/dark variants).
 
 ## Future features (from README)
 

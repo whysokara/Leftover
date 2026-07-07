@@ -1,5 +1,6 @@
 import SwiftUI
 import Photos
+import PhotosUI
 import UIKit
 
 struct ContentView: View {
@@ -9,17 +10,17 @@ struct ContentView: View {
     @State private var totalSize: Int64 = 0
     @State private var showDeleteButton = false
     @State private var showAlbumPicker = true
-    @State private var albums: [PHAssetCollection] = []
     @State private var selectedAlbum: PHAssetCollection? = nil
     @State private var currentAsset: PHAsset? = nil
     @State private var isDeleting = false
+    @State private var isLoadingPhotos = false
+    @State private var isLoadingAlbums = false
+    @State private var photoAuthStatus: PHAuthorizationStatus = .notDetermined
     @State private var showSnackbar = false
     @State private var snackbarMessage = ""
     @State private var allPhotosThumbnail: UIImage?
     @State private var allPhotosCount: Int = 0
     @State private var sortedAlbums: [AlbumMeta] = []
-    @State private var albumSearchText: String = ""
-    @State private var favoritedAssets: [PHAsset] = []
     @State private var showHeartAnimation = false
     @State private var heartScale: CGFloat = 1.0
     @State private var isAddingToFavorites: Bool = true
@@ -28,47 +29,52 @@ struct ContentView: View {
     @State private var heartRotation: Double = 0
     @State private var heartOpacity: Double = 1.0
     @State private var showSplashScreen = true
-    @State private var shouldPulseHeart = false
-    @State private var bgColor: Color = .black
 
     @GestureState private var dragOffset: CGSize = .zero
 
     var body: some View {
         ZStack {
-            Color(.systemBackground).ignoresSafeArea()
+            Theme.paper.ignoresSafeArea()
 
             if showSplashScreen {
                 splashScreenView
             } else if showAlbumPicker {
                 albumPickerView
+            } else if isLoadingPhotos {
+                ProgressView("Opening \(selectedAlbum?.localizedTitle ?? "All Photos")…")
+                    .foregroundColor(Theme.pencil)
             } else if currentIndex < photoAssets.count {
                 swipeCard
             } else if showDeleteButton {
                 deleteConfirmation
             } else {
-                ProgressView("Loading photos...")
+                emptyAlbumView
             }
 
             if isDeleting {
-                ProgressView("Deleting...")
-                    .progressViewStyle(CircularProgressViewStyle())
+                ProgressView("Tossing…")
                     .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
 
             if showSnackbar {
                 VStack {
                     Spacer()
-                    Text(snackbarMessage)
-                        .font(.subheadline)
-                        .padding(.horizontal)
-                        .padding(.vertical, 10)
-                        .background(.ultraThinMaterial)
-                        .cornerRadius(12)
-                        .padding(.bottom, 30)
+                    HStack(spacing: 10) {
+                        Circle()
+                            .fill(Theme.amberFill)
+                            .frame(width: 9, height: 9)
+                        Text(snackbarMessage)
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundColor(Theme.photoPaper)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(Theme.darkroom, in: Capsule())
+                    .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+                    .padding(.bottom, 30)
                 }
-                .transition(.move(edge: .bottom))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
 
@@ -82,46 +88,31 @@ struct ContentView: View {
         VStack {
             Spacer()
 
-            VStack(spacing: 6) {
-                Text("LeftOver")
-                    .font(.largeTitle)
-                    .fontWeight(.black)
-                    .foregroundColor(.primary)
+            VStack(spacing: 8) {
+                Text("Leftover")
+                    .font(Theme.display(44))
+                    .foregroundColor(Theme.ink)
                     .scaleEffect(pulse ? 1.0 : 0.95)
                     .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
                     .onAppear {
                         pulse = true
-                        
                     }
 
                 Text("Swipe. Keep. Delete. Done.")
                     .font(.callout)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.pencil)
                     .multilineTextAlignment(.center)
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, 28)
 
-            Button(action: {
-                withAnimation {
+            Button("Start Organizing") {
+                withAnimation(Theme.settle) {
                     showSplashScreen = false
                     showAlbumPicker = true
                 }
-            }) {
-                Text("Start Organizing")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 14)
-                    .frame(minHeight: 44)
-                    .buttonStyle(ScaleButtonStyle())
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
-                    )
-                    .contentShape(Rectangle())
             }
-            .accessibilityAddTraits(.isButton)
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.horizontal, 64)
 
             Spacer()
 
@@ -129,19 +120,17 @@ struct ContentView: View {
                 HStack(spacing: 4) {
                     Text("Built by")
                         .font(.footnote)
-                        .dynamicTypeSize(.small ... .xxLarge)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Theme.pencil)
 
                     Link("Kara", destination: URL(string: "https://x.com/whysokara")!)
                         .font(.footnote)
-                        .dynamicTypeSize(.small ... .xxLarge)
-                        .foregroundColor(.accentColor) // changed from .blue
+                        .foregroundColor(Theme.safelight)
                         .underline()
                 }
 
                 Text("No signup. We don’t collect any data.")
                     .font(.footnote)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.pencil)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Built by Kara. No signup required. We don’t collect any data.")
@@ -151,53 +140,140 @@ struct ContentView: View {
         .padding()
         .opacity(showSplashScreen ? 1 : 0)
         .scaleEffect(showSplashScreen ? 1 : 0.96)
-        .animation(.easeInOut(duration: 0.3), value: showSplashScreen) // Smooth transition
+        .animation(.easeInOut(duration: 0.3), value: showSplashScreen)
     }
 
 
     var albumPickerView: some View {
-        NavigationView {
-            ScrollView {
-                LazyVGrid(columns: [
-                    GridItem(.flexible(), spacing: 16),
-                    GridItem(.flexible(), spacing: 16)
-                ], spacing: 16) {
-
-                    // All Photos tile
-                    AlbumGridItem(
-                        title: "All Photos",
-                        count: allPhotosCount,
-                        thumbnail: allPhotosThumbnail
-                    ) {
-                        self.selectedAlbum = nil
-                        self.showAlbumPicker = false
-                        self.loadPhotos()
-                    }
-
-                    // Album List
-                    ForEach(sortedAlbums, id: \.collection.localIdentifier) { albumMeta in
-                        AlbumGridItem(
-                            title: albumMeta.collection.localizedTitle ?? "Unnamed",
-                            count: albumMeta.assetCount,
-                            thumbnail: albumMeta.thumbnail
-                        ) {
-                            self.selectedAlbum = albumMeta.collection
-                            self.showAlbumPicker = false
-                            self.loadPhotos(from: albumMeta.collection)
+        NavigationStack {
+            Group {
+                if photoAuthStatus == .denied || photoAuthStatus == .restricted {
+                    permissionDeniedView
+                } else {
+                    albumGrid
+                }
+            }
+            .background(Theme.paper)
+            .navigationTitle("Albums")
+            .onAppear {
+                PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+                    DispatchQueue.main.async {
+                        self.photoAuthStatus = status
+                        if status == .authorized || status == .limited {
+                            self.fetchAlbums()
                         }
                     }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 24)
             }
-            .navigationTitle("Albums")
-            .onAppear {
-                PHPhotoLibrary.requestAuthorization { status in
-                    if status == .authorized || status == .limited {
-                        fetchAlbums()
+        }
+    }
+
+    var albumGrid: some View {
+        ScrollView {
+            if photoAuthStatus == .limited {
+                HStack {
+                    Text("Showing only the photos you’ve shared.")
+                        .font(.footnote)
+                        .foregroundColor(Theme.pencil)
+                    Spacer()
+                    Button("Manage") {
+                        presentLimitedLibraryPicker()
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Theme.safelight)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+            }
+
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 16),
+                GridItem(.flexible(), spacing: 16)
+            ], spacing: 16) {
+
+                // All Photos tile
+                AlbumGridItem(
+                    title: "All Photos",
+                    count: allPhotosCount,
+                    thumbnail: allPhotosThumbnail
+                ) {
+                    self.selectedAlbum = nil
+                    self.showAlbumPicker = false
+                    self.loadPhotos()
+                }
+
+                // Album List
+                ForEach(sortedAlbums, id: \.collection.localIdentifier) { albumMeta in
+                    AlbumGridItem(
+                        title: albumMeta.collection.localizedTitle ?? "Unnamed",
+                        count: albumMeta.assetCount,
+                        thumbnail: albumMeta.thumbnail
+                    ) {
+                        self.selectedAlbum = albumMeta.collection
+                        self.showAlbumPicker = false
+                        self.loadPhotos(from: albumMeta.collection)
                     }
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+
+            if isLoadingAlbums && sortedAlbums.isEmpty {
+                ProgressView()
+                    .padding(.top, 40)
+            }
+        }
+    }
+
+    var permissionDeniedView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "photo.on.rectangle.angled")
+                .font(.system(size: 40))
+                .foregroundColor(Theme.safelight)
+
+            Text("Leftover needs your library")
+                .font(Theme.title)
+                .foregroundColor(Theme.ink)
+
+            Text("Allow photo access in Settings to start cleaning. Photos stay on your phone — nothing is uploaded, ever.")
+                .font(.subheadline)
+                .foregroundColor(Theme.pencil)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.horizontal, 64)
+            .padding(.top, 8)
+        }
+    }
+
+    var emptyAlbumView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 36))
+                .foregroundColor(Theme.safelight)
+
+            Text("Nothing leftover")
+                .font(Theme.title)
+                .foregroundColor(Theme.ink)
+
+            Text("This album is spotless. Nice work.")
+                .font(.subheadline)
+                .foregroundColor(Theme.pencil)
+
+            Button("Back to albums") {
+                withAnimation(Theme.settle) {
+                    resetToAlbumPicker()
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.horizontal, 64)
+            .padding(.top, 8)
         }
     }
 
@@ -213,8 +289,18 @@ struct ContentView: View {
                         ZStack(alignment: .topTrailing) {
                             PhotoAssetImage(asset: asset)
                                 .frame(height: 450)
-                                .cornerRadius(16)
-                                .shadow(radius: 8)
+                                .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+                                .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
+                                .overlay(alignment: .topLeading) {
+                                    DecisionStamp(isKeep: true)
+                                        .opacity(min(max(Double(dragOffset.width) - 20, 0) / 100, 1))
+                                        .padding(20)
+                                }
+                                .overlay(alignment: .topTrailing) {
+                                    DecisionStamp(isKeep: false)
+                                        .opacity(min(max(Double(-dragOffset.width) - 20, 0) / 100, 1))
+                                        .padding(20)
+                                }
                                 .padding(.horizontal)
                                 .transition(.scale.combined(with: .opacity))
                                 .offset(x: dragOffset.width)
@@ -225,12 +311,15 @@ struct ContentView: View {
                                             state = value.translation
                                         }
                                         .onEnded { value in
-                                            withAnimation(.easeInOut) {
+                                            withAnimation(Theme.flick) {
                                                 if value.translation.width < -100 {
+                                                    Haptics.impact(.rigid)
                                                     toBeDeleted.append(asset)
+                                                    totalSize += assetFileSize(asset)
                                                     currentIndex += 1
                                                     moveToNextPhoto()
                                                 } else if value.translation.width > 100 {
+                                                    Haptics.impact(.soft)
                                                     currentIndex += 1
                                                     moveToNextPhoto()
                                                 }
@@ -238,8 +327,7 @@ struct ContentView: View {
                                         }
                                 )
                                 .onTapGesture(count: 2) {
-                                    let generator = UIImpactFeedbackGenerator(style: .light)
-                                    generator.impactOccurred()
+                                    Haptics.impact(.light)
 
                                     guard let asset = currentAsset else { return }
                                     isAddingToFavorites = !asset.isFavorite
@@ -250,7 +338,7 @@ struct ContentView: View {
                                         heartRotation = 0
                                         heartScale = 0.8
 
-                                        withAnimation(.interpolatingSpring(stiffness: 100, damping: 6)) {
+                                        withAnimation(Theme.pop) {
                                             heartScale = 1.2
                                         }
                                     } else {
@@ -295,7 +383,7 @@ struct ContentView: View {
                                         if showHeartAnimation {
                                             Image(systemName: "heart.fill")
                                                 .resizable()
-                                                .foregroundColor(Color.accentColor)
+                                                .foregroundColor(Theme.safelight)
                                                 .frame(width: 30, height: 30)
                                                 .scaleEffect(heartScale)
                                                 .rotationEffect(.degrees(heartRotation))
@@ -318,40 +406,31 @@ struct ContentView: View {
 
                 if currentIndex > 0 {
                     Button(action: {
-                        withAnimation {
+                        withAnimation(Theme.settle) {
                             currentIndex -= 1
                             let asset = photoAssets[currentIndex]
-                            toBeDeleted.removeAll { $0 == asset }
-                            favoritedAssets.removeAll { $0 == asset }
+                            if toBeDeleted.contains(asset) {
+                                totalSize -= assetFileSize(asset)
+                                toBeDeleted.removeAll { $0 == asset }
+                            }
                             currentAsset = asset
                         }
                     }) {
                         Label("Undo", systemImage: "arrow.uturn.left")
-                            .font(.subheadline)
-                            .dynamicTypeSize(.small ... .xxLarge)
-                            .padding(.horizontal)
-                            .padding(.vertical, 6)
-                            .background(.ultraThinMaterial)
-                            .cornerRadius(10)
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundColor(Theme.ink)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
                     }
                     .padding(.top, 8)
                     .accessibilityLabel("Undo last action")
                     .accessibilityHint("Restores the last skipped or deleted photo")
-                    .accessibilityAddTraits(.isButton)
                 }
-                
-//                                Text("\u{2192} Swipe right to keep.  \u{2190} Swipe left to clean.")
-//                                    .font(.caption)
-//                                    .foregroundColor(.secondary)
-//                
-//                                Text("Photo \(currentIndex + 1) of \(photoAssets.count)")
-//                                    .font(.footnote)
-//                                    .foregroundColor(.secondary)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        let countToShow = min(7, photoAssets.count)
-                        let visibleIndices = (0..<countToShow).map { (currentIndex + $0) % photoAssets.count }
+                        let visibleIndices = Array(currentIndex..<min(currentIndex + 7, photoAssets.count))
 
                         ForEach(visibleIndices, id: \.self) { index in
                             let asset = photoAssets[index]
@@ -362,10 +441,10 @@ struct ContentView: View {
                                 .cornerRadius(isCurrent ? 8 : 6)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: isCurrent ? 8 : 6)
-                                        .stroke(isCurrent ? Color.accentColor.opacity(0.6) : Color.clear, lineWidth: 1.5)
+                                        .stroke(isCurrent ? Theme.safelight : Color.clear, lineWidth: 2)
                                 )
                                 .onTapGesture {
-                                    withAnimation(.easeInOut) {
+                                    withAnimation(Theme.settle) {
                                         currentIndex = index
                                         currentAsset = asset
                                     }
@@ -377,42 +456,24 @@ struct ContentView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 6)
-                    .gesture(
-                        DragGesture()
-                            .onEnded { value in
-                                withAnimation(.easeInOut) {
-                                    if value.translation.width < -50 {
-                                        if currentIndex < photoAssets.count - 1 {
-                                            currentIndex += 1
-                                            currentAsset = photoAssets[currentIndex]
-                                        }
-                                    } else if value.translation.width > 50 {
-                                        if currentIndex > 0 {
-                                            currentIndex -= 1
-                                            currentAsset = photoAssets[currentIndex]
-                                        }
-                                    }
-                                }
-                            }
-                    )
                 }
 
+                Text("\(currentIndex + 1) / \(photoAssets.count)")
+                    .font(.footnote.monospacedDigit())
+                    .foregroundColor(Theme.pencil)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 4)
+                    .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
+
                 if !toBeDeleted.isEmpty {
-                    Button("Delete \(toBeDeleted.count) Now") {
+                    Button("Toss \(toBeDeleted.count) photo\(toBeDeleted.count == 1 ? "" : "s")") {
                         deleteMarkedPhotos()
                     }
-                    .font(.headline)
-                    .dynamicTypeSize(.small ... .xxLarge)
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(Color.red)
-                    .foregroundColor(.white)
-                    .cornerRadius(12)
+                    .buttonStyle(TossButtonStyle())
                     .padding(.horizontal)
                     .padding(.top)
-                    .accessibilityLabel("Delete \(toBeDeleted.count) selected photo\(toBeDeleted.count > 1 ? "s" : "")")
-                    .accessibilityHint("Deletes all selected photos permanently")
-                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Toss \(toBeDeleted.count) selected photo\(toBeDeleted.count > 1 ? "s" : "")")
+                    .accessibilityHint("Deletes all marked photos permanently")
                 }
 
                 Spacer()
@@ -421,19 +482,19 @@ struct ContentView: View {
             VStack {
                 HStack {
                     Button(action: {
-                        withAnimation {
+                        withAnimation(Theme.settle) {
                             resetToAlbumPicker()
                         }
                     }) {
                         Label("Albums", systemImage: "chevron.backward")
-                            .font(.subheadline)
-                            .padding(10)
-                            .background(.ultraThinMaterial)
-                            .cornerRadius(10)
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundColor(Theme.ink)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(.ultraThinMaterial, in: Capsule())
                     }
                     .padding(.leading, 16)
                     .accessibilityLabel("Back to albums")
-                    .accessibilityAddTraits(.isButton)
 
                     Spacer()
                 }
@@ -445,86 +506,74 @@ struct ContentView: View {
 
 
     var deleteConfirmation: some View {
-        VStack(spacing: 20) {
-            Text("You're done swiping!")
-                .font(.title2)
-                .bold()
+        VStack(spacing: 16) {
+            if toBeDeleted.isEmpty {
+                Text("That’s the whole album!")
+                    .font(Theme.title)
+                    .foregroundColor(Theme.ink)
 
-            Text("\(toBeDeleted.count) photos marked for deletion.")
+                Text("Nothing marked — nice and tidy.")
+                    .font(.subheadline)
+                    .foregroundColor(Theme.pencil)
 
-            Button("Delete Now") {
-                deleteMarkedPhotos()
-            }
-            .font(.headline)
-            .padding()
-            .frame(maxWidth: .infinity)
-            .background(Color.red)
-            .foregroundColor(.white)
-            .cornerRadius(12)
-            .padding(.horizontal)
-
-            Button("Choose Another Folder") {
-                withAnimation {
-                    resetToAlbumPicker()
+                Button("Choose another album") {
+                    withAnimation(Theme.settle) {
+                        resetToAlbumPicker()
+                    }
                 }
+                .buttonStyle(PrimaryButtonStyle())
+                .padding(.horizontal)
+                .padding(.top, 8)
+            } else {
+                Text("That’s the whole album!")
+                    .font(Theme.title)
+                    .foregroundColor(Theme.ink)
+
+                Text("\(toBeDeleted.count) photo\(toBeDeleted.count == 1 ? "" : "s") ready to toss.")
+                    .font(.subheadline)
+                    .foregroundColor(Theme.pencil)
+
+                Button("Toss \(toBeDeleted.count) photo\(toBeDeleted.count == 1 ? "" : "s")") {
+                    deleteMarkedPhotos()
+                }
+                .buttonStyle(TossButtonStyle())
+                .padding(.horizontal)
+                .padding(.top, 8)
+
+                Button("Choose another album") {
+                    withAnimation(Theme.settle) {
+                        resetToAlbumPicker()
+                    }
+                }
+                .buttonStyle(QuietButtonStyle())
+                .padding(.horizontal)
             }
-            .font(.subheadline)
-            .padding(.top)
-            .foregroundColor(.blue)
         }
+        .padding()
     }
 
-  
+
     func toggleFavorite(_ asset: PHAsset) {
+        let wasFavorite = asset.isFavorite
+
         PHPhotoLibrary.shared().performChanges({
             let request = PHAssetChangeRequest(for: asset)
-            request.isFavorite = !asset.isFavorite
+            request.isFavorite = !wasFavorite
         }) { success, error in
             DispatchQueue.main.async {
                 if success {
-                    if asset.isFavorite {
-                        favoritedAssets.removeAll { $0 == asset }
-                    } else {
-                        favoritedAssets.append(asset)
+                    // PHAsset objects are immutable snapshots — re-fetch so
+                    // isFavorite reads stay correct when this photo is revisited.
+                    if let refreshed = PHAsset.fetchAssets(withLocalIdentifiers: [asset.localIdentifier], options: nil).firstObject {
+                        if let index = photoAssets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) {
+                            photoAssets[index] = refreshed
+                        }
+                        if currentAsset?.localIdentifier == asset.localIdentifier {
+                            currentAsset = refreshed
+                        }
                     }
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        showSnackbar = false
-                    }
-                    currentIndex += 1
-                    moveToNextPhoto()
                 } else {
-                    print("Favorite toggle failed: \(error?.localizedDescription ?? "unknown error")")
-                }
-            }
-        }
-    }
-
-
-    func favoritePhoto(_ asset: PHAsset) {
-        let currentlyFavorite = asset.isFavorite
-        
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetChangeRequest(for: asset)
-            request.isFavorite = !currentlyFavorite
-        }) { success, error in
-            DispatchQueue.main.async {
-                if success {
-                    if currentlyFavorite {
-                        favoritedAssets.removeAll { $0 == asset }
-                        snackbarMessage = "Removed from Favorites"
-                    } else {
-                        favoritedAssets.append(asset)
-                        snackbarMessage = "Added to Favorites"
-                    }
-//                    showSnackbar = true
-//                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-//                        showSnackbar = false
-//                    }
-                    currentIndex += 1
-                    moveToNextPhoto()
-                } else {
-                    print("Failed to toggle favorite: \(error?.localizedDescription ?? "unknown")")
+                    showToast("Couldn’t update favorite.")
                 }
             }
         }
@@ -544,24 +593,28 @@ struct ContentView: View {
         PHPhotoLibrary.shared().performChanges({
             PHAssetChangeRequest.deleteAssets(self.toBeDeleted as NSArray)
         }) { success, error in
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            DispatchQueue.main.async {
                 isDeleting = false
                 if success {
-                    let formattedSize = ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
-                    snackbarMessage = "Deleted \(toBeDeleted.count) photos, freed up \(formattedSize)"
-                    showSnackbar = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        showSnackbar = false
+                    Haptics.success()
+                    let count = toBeDeleted.count
+                    if totalSize > 0 {
+                        let formattedSize = ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
+                        showToast("Tossed \(count) · freed \(formattedSize)")
+                    } else {
+                        showToast("Tossed \(count) photo\(count == 1 ? "" : "s")")
                     }
 
                     self.toBeDeleted.removeAll()
                     self.totalSize = 0
                     self.currentIndex = 0
+                    self.showDeleteButton = false
                     self.loadPhotos(from: self.selectedAlbum)
                 } else {
-                    print("❌ Error: \(error?.localizedDescription ?? "unknown")")
+                    // Also reached when the user taps "Don't Allow" on the
+                    // system dialog — keep all state so they can retry.
+                    showToast("Couldn’t toss those — your photos are untouched.")
                 }
-                self.showDeleteButton = false
             }
         }
     }
@@ -577,84 +630,127 @@ struct ContentView: View {
         self.showDeleteButton = false
     }
 
-    func loadPhotos(from album: PHAssetCollection? = nil) {
-        let fetchOptions = PHFetchOptions()
-        fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-
-        let assets: PHFetchResult<PHAsset>
-        if let album = album {
-            assets = PHAsset.fetchAssets(in: album, options: fetchOptions)
-        } else {
-            assets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+    func showToast(_ message: String) {
+        snackbarMessage = message
+        withAnimation(Theme.settle) {
+            showSnackbar = true
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            withAnimation(Theme.settle) {
+                showSnackbar = false
+            }
+        }
+    }
 
-        var result: [PHAsset] = []
-        assets.enumerateObjects { (asset, _, _) in result.append(asset) }
+    func assetFileSize(_ asset: PHAsset) -> Int64 {
+        PHAssetResource.assetResources(for: asset)
+            .compactMap { $0.value(forKey: "fileSize") as? Int64 }
+            .first ?? 0
+    }
 
-        DispatchQueue.main.async {
-            self.photoAssets = result
-            self.currentIndex = 0
-            self.toBeDeleted = []
-            self.totalSize = 0
-            self.currentAsset = result.first
+    func presentLimitedLibraryPicker() {
+        guard let scene = UIApplication.shared.connectedScenes
+                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else { return }
+        PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: root)
+    }
+
+    func loadPhotos(from album: PHAssetCollection? = nil) {
+        isLoadingPhotos = true
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let fetchOptions = PHFetchOptions()
+            fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+            let assets: PHFetchResult<PHAsset>
+            if let album = album {
+                assets = PHAsset.fetchAssets(in: album, options: fetchOptions)
+            } else {
+                assets = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+            }
+
+            var result: [PHAsset] = []
+            assets.enumerateObjects { (asset, _, _) in result.append(asset) }
+
+            DispatchQueue.main.async {
+                self.photoAssets = result
+                self.currentIndex = 0
+                self.toBeDeleted = []
+                self.totalSize = 0
+                self.currentAsset = result.first
+                self.isLoadingPhotos = false
+            }
         }
     }
 
     func fetchAlbums() {
-        var all: [AlbumMeta] = []
+        guard !isLoadingAlbums else { return }
+        isLoadingAlbums = true
 
-        let options = PHFetchOptions()
-        let userAlbums = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: nil)
-        let smartAlbums = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .albumRegular, options: nil)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let options = PHFetchOptions()
+            let userAlbums = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumRegular, options: nil)
+            let smartAlbums = PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: .any, options: nil)
 
-        let allCollections = [userAlbums, smartAlbums].flatMap { result in
-            var temp: [PHAssetCollection] = []
-            result.enumerateObjects { collection, _, _ in temp.append(collection) }
-            return temp
-        }
-
-        let imageManager = PHCachingImageManager()
-
-        for collection in allCollections {
-            let assets = PHAsset.fetchAssets(in: collection, options: options)
-            guard let firstAsset = assets.firstObject else { continue }
-
-            let latestDate = assets.firstObject?.creationDate ?? Date.distantPast
-            let requestOptions = PHImageRequestOptions()
-            requestOptions.deliveryMode = .fastFormat
-            requestOptions.isSynchronous = true
-            requestOptions.isNetworkAccessAllowed = true
-
-            var thumbnail: UIImage?
-            imageManager.requestImage(for: firstAsset,
-                                      targetSize: CGSize(width: 300, height: 300),
-                                      contentMode: .aspectFill,
-                                      options: requestOptions) { result, _ in
-                thumbnail = result
+            let allCollections = [userAlbums, smartAlbums].flatMap { result -> [PHAssetCollection] in
+                var temp: [PHAssetCollection] = []
+                result.enumerateObjects { collection, _, _ in temp.append(collection) }
+                return temp
             }
 
-            all.append(AlbumMeta(
-                collection: collection,
-                thumbnail: thumbnail,
-                assetCount: assets.count,
-                latestDate: latestDate
-            ))
-        }
+            let imageManager = PHImageManager.default()
+            var all: [AlbumMeta] = []
 
-        self.sortedAlbums = all.sorted { $0.latestDate > $1.latestDate }
+            for collection in allCollections {
+                if collection.assetCollectionSubtype == .smartAlbumAllHidden { continue }
 
-        let allAssets = PHAsset.fetchAssets(with: .image, options: options)
-        self.allPhotosCount = allAssets.count
-        if let first = allAssets.firstObject {
-            let reqOptions = PHImageRequestOptions()
-            reqOptions.deliveryMode = .fastFormat
-            reqOptions.isSynchronous = true
-            reqOptions.isNetworkAccessAllowed = true
-            PHImageManager.default().requestImage(for: first,
-                                                  targetSize: CGSize(width: 300, height: 300),
-                                                  contentMode: .aspectFill,
-                                                  options: reqOptions) { result, _ in
-                self.allPhotosThumbnail = result
+                let assets = PHAsset.fetchAssets(in: collection, options: options)
+                guard let firstAsset = assets.firstObject else { continue }
+
+                let latestDate = firstAsset.creationDate ?? Date.distantPast
+                let requestOptions = PHImageRequestOptions()
+                requestOptions.deliveryMode = .fastFormat
+                requestOptions.isSynchronous = true
+                requestOptions.isNetworkAccessAllowed = true
+
+                var thumbnail: UIImage?
+                imageManager.requestImage(for: firstAsset,
+                                          targetSize: CGSize(width: 300, height: 300),
+                                          contentMode: .aspectFill,
+                                          options: requestOptions) { result, _ in
+                    thumbnail = result
+                }
+
+                all.append(AlbumMeta(
+                    collection: collection,
+                    thumbnail: thumbnail,
+                    assetCount: assets.count,
+                    latestDate: latestDate
+                ))
+            }
+
+            let sorted = all.sorted { $0.latestDate > $1.latestDate }
+
+            let allAssets = PHAsset.fetchAssets(with: .image, options: options)
+            var allThumb: UIImage?
+            if let first = allAssets.firstObject {
+                let reqOptions = PHImageRequestOptions()
+                reqOptions.deliveryMode = .fastFormat
+                reqOptions.isSynchronous = true
+                reqOptions.isNetworkAccessAllowed = true
+                imageManager.requestImage(for: first,
+                                          targetSize: CGSize(width: 300, height: 300),
+                                          contentMode: .aspectFill,
+                                          options: reqOptions) { result, _ in
+                    allThumb = result
+                }
+            }
+
+            DispatchQueue.main.async {
+                self.sortedAlbums = sorted
+                self.allPhotosCount = allAssets.count
+                self.allPhotosThumbnail = allThumb
+                self.isLoadingAlbums = false
             }
         }
     }
@@ -677,29 +773,36 @@ struct AlbumGridItem: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 6) {
                 if let thumbnail = thumbnail {
-                    Image(uiImage: thumbnail)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: UIScreen.main.bounds.width / 2 - 32, height: 120)
-                        .clipped()
-                        .cornerRadius(12)
+                    Color.clear
+                        .frame(height: 120)
+                        .overlay(
+                            Image(uiImage: thumbnail)
+                                .resizable()
+                                .scaledToFill()
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
                 } else {
-                    Rectangle()
-                        .fill(Color.gray.opacity(0.3))
-                        .frame(width: UIScreen.main.bounds.width / 2 - 32, height: 120)
-                        .cornerRadius(12)
+                    RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
+                        .fill(Theme.print)
+                        .frame(height: 120)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
+                                .strokeBorder(Theme.hairline, lineWidth: 1)
+                        )
                         .overlay(ProgressView())
                 }
 
                 Text(title)
-                    .font(.headline)
-                    .foregroundColor(.primary)
+                    .font(.system(.headline, design: .rounded))
+                    .foregroundColor(Theme.ink)
 
                 Text("\(count) Photos")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.caption.monospacedDigit())
+                    .foregroundColor(Theme.pencil)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .buttonStyle(ScaleButtonStyle())
     }
 }
 
@@ -752,7 +855,7 @@ struct PhotoThumbnailView: View {
                     .scaledToFill()
                     .clipped()
             } else {
-                Color.gray.opacity(0.2)
+                Theme.print
                     .overlay(ProgressView())
             }
         }
@@ -781,5 +884,3 @@ struct ScaleButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
-
-
