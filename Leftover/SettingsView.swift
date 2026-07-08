@@ -22,7 +22,7 @@ struct SettingsView: View {
                         get: { notifications.reminderEnabled },
                         set: { notifications.setEnabled($0, burstDoneToday: stats.isBurstDoneToday) }
                     ))
-                    .tint(Theme.safelight)
+                    .tint(Theme.cream)
 
                     if notifications.reminderEnabled {
                         DatePicker("Time", selection: Binding(
@@ -40,7 +40,7 @@ struct SettingsView: View {
                                 UIApplication.shared.open(url)
                             }
                         }
-                        .foregroundColor(Theme.safelight)
+                        .foregroundColor(Theme.cream)
                     }
                 } header: {
                     Text("Daily reminder")
@@ -51,12 +51,12 @@ struct SettingsView: View {
                 Section {
                     HStack {
                         Image(systemName: "snowflake")
-                            .foregroundColor(Theme.safelight)
+                            .foregroundColor(Theme.cream)
                         Text("Freezes ready")
                         Spacer()
                         Text("\(stats.freezes)")
                             .font(.body.monospacedDigit().weight(.semibold))
-                            .foregroundColor(Theme.pencil)
+                            .foregroundColor(Theme.dim)
                     }
                 } header: {
                     Text("Streak")
@@ -75,19 +75,19 @@ struct SettingsView: View {
                         Text("Version")
                         Spacer()
                         Text(versionString)
-                            .foregroundColor(Theme.pencil)
+                            .foregroundColor(Theme.dim)
                     }
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Theme.paper)
+            .background(Theme.stage)
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                         .font(.body.weight(.semibold))
-                        .foregroundColor(Theme.safelight)
+                        .foregroundColor(Theme.cream)
                 }
             }
         }
@@ -96,7 +96,7 @@ struct SettingsView: View {
     private func trustRow(icon: String, text: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundColor(Theme.safelight)
+                .foregroundColor(Theme.cream)
                 .frame(width: 24)
             Text(text)
         }

@@ -9,6 +9,7 @@
 
 import SwiftUI
 import Photos
+import UIKit
 
 struct HomeView: View {
     let freedBytes: Int64
@@ -18,6 +19,7 @@ struct HomeView: View {
     let burstCount: Int
     let burstIsFallback: Bool
     let burstDone: Bool
+    let burstBackdrop: UIImage?
 
     let screenshotCount: Int
     let videoCount: Int
@@ -43,15 +45,14 @@ struct HomeView: View {
                     .font(Theme.display(40))
                     .foregroundColor(Theme.ink)
                 burstCard
-                sortGrid
-                browseAlbumsRow
+                cleanupList
                 recentStrip
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
             .padding(.bottom, 32)
         }
-        .background(Theme.paper)
+        .background(Theme.stage)
     }
 
     private var topBar: some View {
@@ -59,7 +60,7 @@ struct HomeView: View {
             Button(action: onSettings) {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 20))
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
             }
             .accessibilityLabel("Settings")
 
@@ -68,14 +69,14 @@ struct HomeView: View {
             if freedBytes > 0 {
                 Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
                     .font(.system(.subheadline, design: .monospaced).weight(.semibold))
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
                     .accessibilityLabel("Freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file)) so far")
             }
 
             if streakCount > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "flame.fill")
-                        .foregroundColor(Theme.safelight)
+                        .foregroundColor(Theme.cream)
                         .scaleEffect(flameScale)
                     Text("\(streakCount)")
                         .font(.system(.subheadline, design: .monospaced).weight(.bold))
@@ -99,131 +100,136 @@ struct HomeView: View {
             Text("TODAY’S MEMORY BURST")
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                 .tracking(2)
-                .foregroundColor(burstDone ? Theme.pencil : Theme.amberInk.opacity(0.7))
+                .foregroundColor(burstDone ? Theme.dim : Theme.cream.opacity(0.85))
 
             if burstDone {
-                Label("Done for today", systemImage: "checkmark.circle.fill")
+                Label("Done for today.", systemImage: "checkmark.circle.fill")
                     .font(Theme.title)
                     .foregroundColor(Theme.keep)
-                Text("You’ve kept what matters. Come back tomorrow.")
+                Text("Come back tomorrow.")
                     .font(.subheadline)
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
             } else if burstCount == 0 {
-                Text("Nothing to sort today")
+                Text("Nothing today.")
                     .font(Theme.title)
-                    .foregroundColor(Theme.amberInk)
-                Text("No old memories or screenshots this week — enjoy the quiet.")
+                    .foregroundColor(Theme.ink)
+                Text("No memories this week. Enjoy the quiet.")
                     .font(.subheadline)
-                    .foregroundColor(Theme.amberInk.opacity(0.75))
+                    .foregroundColor(Theme.dim)
             } else {
                 Text(burstIsFallback ? "Screenshot sweep" : "This week, years ago")
                     .font(Theme.display(30))
-                    .foregroundColor(Theme.amberInk)
+                    .foregroundColor(Theme.ink)
+                    .shadow(color: .black.opacity(0.5), radius: 6)
                 Text(burstIsFallback
-                     ? "No memories this week — sweep \(burstCount) screenshots instead."
+                     ? "No memories this week — \(burstCount) screenshots instead."
                      : "\(burstCount) photo\(burstCount == 1 ? "" : "s") from your past.")
                     .font(.subheadline)
-                    .foregroundColor(Theme.amberInk.opacity(0.75))
+                    .foregroundColor(Theme.ink.opacity(0.85))
+                    .shadow(color: .black.opacity(0.5), radius: 4)
 
                 Button("Start today’s burst", action: onStartBurst)
-                    .buttonStyle(BurstButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle())
                     .padding(.top, 8)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(
-            Group {
-                if burstDone {
-                    RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                        .fill(Theme.print)
+            ZStack {
+                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                    .fill(Theme.surface)
+
+                // The card is a still from your own past, dimmed to a
+                // scrim — the theater screen before the show starts.
+                if !burstDone, burstCount > 0, let backdrop = burstBackdrop {
+                    Image(uiImage: backdrop)
+                        .resizable()
+                        .scaledToFill()
+                        .blur(radius: 14)
                         .overlay(
-                            RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                                .strokeBorder(Theme.hairline, lineWidth: 1)
+                            LinearGradient(colors: [.black.opacity(0.45), .black.opacity(0.72)],
+                                           startPoint: .top, endPoint: .bottom)
                         )
-                } else {
-                    RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                        .fill(LinearGradient(
-                            colors: [Theme.amberFill, Theme.amberFill.opacity(0.82)],
-                            startPoint: .topLeading, endPoint: .bottomTrailing))
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                    .strokeBorder(Theme.hairline, lineWidth: 1)
+            )
         )
     }
 
-    private var sortGrid: some View {
+    // One continuous surface of rows — replaces the old 2×2 tile grid.
+    private var cleanupList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Sort your leftovers")
+            Text("Clean up")
                 .font(Theme.title)
                 .foregroundColor(Theme.ink)
 
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 14),
-                GridItem(.flexible(), spacing: 14)
-            ], spacing: 14) {
-                CategoryTile(icon: "camera.viewfinder",
-                             title: "Screenshot Sweep",
-                             subtitle: countLabel(screenshotCount, "screenshot"),
-                             enabled: screenshotCount > 0,
-                             action: onScreenshots)
-                CategoryTile(icon: "clock.arrow.circlepath",
-                             title: "Time Capsule",
-                             subtitle: countLabel(timeCapsuleCount, "photo"),
-                             enabled: timeCapsuleCount > 0,
-                             action: onTimeCapsule)
-                CategoryTile(icon: "square.stack",
-                             title: "Duplicates",
-                             subtitle: "Coming soon",
-                             enabled: true) {
-                    onComingSoon("Duplicate finding is coming soon.")
+            VStack(spacing: 0) {
+                SortRow(icon: "camera.viewfinder",
+                        title: "Screenshot Sweep",
+                        detail: countLabel(screenshotCount, "screenshot"),
+                        dimmed: screenshotCount == 0,
+                        action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots to sweep.") })
+                rowDivider
+                SortRow(icon: "clock.arrow.circlepath",
+                        title: "Time Capsule",
+                        detail: countLabel(timeCapsuleCount, "photo"),
+                        dimmed: timeCapsuleCount == 0,
+                        action: timeCapsuleCount > 0 ? onTimeCapsule : { onComingSoon("No old photos this week.") })
+                rowDivider
+                SortRow(icon: "square.on.square",
+                        title: "Duplicates",
+                        detail: "Soon",
+                        dimmed: true) {
+                    onComingSoon("Duplicates are coming soon.")
                 }
-                CategoryTile(icon: "film",
-                             title: "Large Videos",
-                             subtitle: videoCount > 0 ? "\(videoCount) videos · soon" : "Coming soon",
-                             enabled: true) {
+                rowDivider
+                SortRow(icon: "film",
+                        title: "Large Videos",
+                        detail: "Soon",
+                        dimmed: true) {
                     onComingSoon("Video review is coming soon.")
                 }
+                rowDivider
+                SortRow(icon: "rectangle.stack",
+                        title: "Albums",
+                        detail: "",
+                        dimmed: false,
+                        action: onAlbums)
             }
+            .background(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Theme.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Theme.hairline, lineWidth: 1)
+            )
         }
+    }
+
+    private var rowDivider: some View {
+        Rectangle()
+            .fill(Theme.hairline)
+            .frame(height: 1)
+            .padding(.leading, 66)
     }
 
     private func countLabel(_ count: Int, _ noun: String) -> String {
         if isLoading && count == 0 { return "Counting…" }
-        return "\(count) \(noun)\(count == 1 ? "" : "s")"
-    }
-
-    private var browseAlbumsRow: some View {
-        Button(action: onAlbums) {
-            HStack {
-                Image(systemName: "rectangle.stack")
-                    .foregroundColor(Theme.safelight)
-                Text("Browse albums")
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundColor(Theme.ink)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Theme.pencil)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
-                    .fill(Theme.print)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
-                            .strokeBorder(Theme.hairline, lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel("Browse albums")
+        if count == 0 { return "None" }
+        return "\(count.formatted()) \(noun)\(count == 1 ? "" : "s")"
     }
 
     private var recentStrip: some View {
         Group {
             if !recentAssets.isEmpty {
                 VStack(alignment: .leading, spacing: 12) {
-                    Text("Recent photos")
+                    Text("Recent")
                         .font(Theme.title)
                         .foregroundColor(Theme.ink)
 
@@ -246,57 +252,47 @@ struct HomeView: View {
     }
 }
 
-// Cream CTA on the amber card — PrimaryButtonStyle would be amber-on-amber.
-struct BurstButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(Theme.button)
-            .foregroundColor(Theme.amberInk)
-            .padding(.vertical, 14)
-            .frame(maxWidth: .infinity, minHeight: 50)
-            .background(Theme.photoPaper)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous))
-            .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
-            .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
-    }
-}
-
-struct CategoryTile: View {
+struct SortRow: View {
     let icon: String
     let title: String
-    let subtitle: String
-    let enabled: Bool
+    let detail: String
+    let dimmed: Bool
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 14) {
                 Image(systemName: icon)
-                    .font(.system(size: 24))
-                    .foregroundColor(Theme.safelight)
-                Text(title)
-                    .font(.system(.headline, design: .rounded))
-                    .foregroundColor(Theme.ink)
-                    .multilineTextAlignment(.leading)
-                Text(subtitle)
-                    .font(.caption.monospacedDigit())
-                    .foregroundColor(Theme.pencil)
-            }
-            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
-            .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
-                    .fill(Theme.print)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
-                            .strokeBorder(Theme.hairline, lineWidth: 1)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(dimmed ? Theme.dim : Theme.cream)
+                    .frame(width: 38, height: 38)
+                    .background(
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .fill(Theme.raised)
                     )
-            )
-            .opacity(enabled ? 1 : 0.5)
+
+                Text(title)
+                    .font(.system(.body, design: .rounded).weight(.semibold))
+                    .foregroundColor(dimmed ? Theme.dim : Theme.ink)
+
+                Spacer(minLength: 8)
+
+                if !detail.isEmpty {
+                    Text(detail)
+                        .font(.footnote.monospacedDigit())
+                        .foregroundColor(Theme.dim)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Theme.dim.opacity(dimmed ? 0.4 : 1))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle())
-        .disabled(!enabled)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(subtitle)")
+        .accessibilityLabel(detail.isEmpty ? title : "\(title), \(detail)")
     }
 }

@@ -49,11 +49,16 @@ struct ContentView: View {
     @State private var recentAssets: [PHAsset] = []
     @Environment(\.scenePhase) private var scenePhase
 
-    @GestureState private var dragOffset: CGSize = .zero
+    // Swipe-card physics: offset follows the finger, then animates the
+    // card off-screen (throw) or back to center (settle).
+    @State private var cardOffset: CGSize = .zero
+    @State private var isThrowingCard = false
+    @State private var showExitAlert = false
+    @State private var burstBackdrop: UIImage? = nil
 
     var body: some View {
         ZStack {
-            Theme.paper.ignoresSafeArea()
+            Theme.stage.ignoresSafeArea()
 
             if showSplashScreen {
                 splashScreenView
@@ -61,7 +66,7 @@ struct ContentView: View {
                 albumPickerView
             } else if isLoadingPhotos {
                 ProgressView("Opening \(selectedAlbum?.localizedTitle ?? "All Photos")…")
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
             } else if sessionActive && currentIndex < photoAssets.count {
                 swipeCard
             } else if sessionActive && showDeleteButton {
@@ -76,8 +81,10 @@ struct ContentView: View {
 
             if isDeleting {
                 ProgressView("Tossing…")
+                    .tint(Theme.ink)
+                    .foregroundColor(Theme.ink)
                     .padding()
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous))
             }
 
             if showSnackbar {
@@ -85,22 +92,23 @@ struct ContentView: View {
                     Spacer()
                     HStack(spacing: 10) {
                         Circle()
-                            .fill(Theme.amberFill)
-                            .frame(width: 9, height: 9)
+                            .fill(Theme.cream)
+                            .frame(width: 8, height: 8)
                         Text(snackbarMessage)
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundColor(Theme.photoPaper)
+                            .foregroundColor(Theme.ink)
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
-                    .background(Theme.darkroom, in: Capsule())
-                    .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+                    .shadow(color: .black.opacity(0.4), radius: 14, y: 4)
                     .padding(.bottom, 30)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-
+        .preferredColorScheme(.dark)
         .onChange(of: currentIndex) { newIndex in
             if newIndex < photoAssets.count {
                 currentAsset = photoAssets[newIndex]
@@ -123,22 +131,28 @@ struct ContentView: View {
 
             VStack(spacing: 8) {
                 Text("Leftover")
-                    .font(Theme.display(44))
-                    .foregroundColor(Theme.ink)
-                    .scaleEffect(pulse ? 1.0 : 0.95)
-                    .animation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: pulse)
+                    .font(Theme.display(48))
+                    .foregroundColor(Theme.cream)
+                    .scaleEffect(pulse ? 1.0 : 0.96)
+                    .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: pulse)
+                    .background(
+                        // The spotlight — a soft cream pool behind the wordmark.
+                        RadialGradient(colors: [Theme.cream.opacity(0.14), .clear],
+                                       center: .center, startRadius: 10, endRadius: 220)
+                            .frame(width: 440, height: 440)
+                    )
                     .onAppear {
                         pulse = true
                     }
 
-                Text("Swipe. Keep. Delete. Done.")
+                Text("Swipe. Keep. Done.")
                     .font(.callout)
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
                     .multilineTextAlignment(.center)
             }
             .padding(.bottom, 28)
 
-            Button("Start Organizing") {
+            Button("Start") {
                 stats.hasLaunchedBefore = true
                 withAnimation(Theme.settle) {
                     showSplashScreen = false
@@ -153,17 +167,17 @@ struct ContentView: View {
                 HStack(spacing: 4) {
                     Text("Built by")
                         .font(.footnote)
-                        .foregroundColor(Theme.pencil)
+                        .foregroundColor(Theme.dim)
 
                     Link("Kara", destination: URL(string: "https://x.com/whysokara")!)
                         .font(.footnote)
-                        .foregroundColor(Theme.safelight)
+                        .foregroundColor(Theme.cream)
                         .underline()
                 }
 
                 Text("No signup. We don’t collect any data.")
                     .font(.footnote)
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Built by Kara. No signup required. We don’t collect any data.")
@@ -189,6 +203,7 @@ struct ContentView: View {
                     burstCount: burstAssets.count,
                     burstIsFallback: burstIsFallback,
                     burstDone: stats.isBurstDoneToday,
+                    burstBackdrop: burstBackdrop,
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
                     timeCapsuleCount: timeCapsuleAssets.count,
@@ -212,33 +227,49 @@ struct ContentView: View {
                     self.photoAuthStatus = status
                     if status == .authorized || status == .limited {
                         self.loadHomeData()
+                        #if DEBUG
+                        // Headless-verification hook: jump straight into an
+                        // All Photos session (simctl launch … -LeftoverAutoSession).
+                        if ProcessInfo.processInfo.arguments.contains("-LeftoverAutoSession"),
+                           !self.sessionActive {
+                            self.loadPhotos()
+                        }
+                        #endif
                     }
                 }
             }
         }
     }
 
+    @State private var celebrationScale: CGFloat = 0.4
+
     var burstCompleteView: some View {
         VStack(spacing: 16) {
             Image(systemName: "sparkles")
-                .font(.system(size: 44))
-                .foregroundColor(Theme.safelight)
+                .font(.system(size: 48))
+                .foregroundColor(Theme.cream)
+                .scaleEffect(celebrationScale)
+                .shadow(color: Theme.cream.opacity(0.45), radius: 24)
+                .onAppear {
+                    celebrationScale = 0.4
+                    withAnimation(Theme.pop) { celebrationScale = 1.0 }
+                }
 
-            Text("Today’s burst is complete")
-                .font(Theme.title)
+            Text("Done for today.")
+                .font(Theme.display(30))
                 .foregroundColor(Theme.ink)
                 .multilineTextAlignment(.center)
 
-            Text("You’ve kept what matters today. Come back tomorrow for a new memory.")
+            Text("Come back tomorrow.")
                 .font(.subheadline)
-                .foregroundColor(Theme.pencil)
+                .foregroundColor(Theme.dim)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
 
             if stats.streakJustIncremented {
                 HStack(spacing: 6) {
                     Image(systemName: "flame.fill")
-                        .foregroundColor(Theme.safelight)
+                        .foregroundColor(Theme.cream)
                     Text("\(stats.streakCount)-day streak")
                         .font(.system(.subheadline, design: .rounded).weight(.bold))
                         .foregroundColor(Theme.ink)
@@ -248,10 +279,10 @@ struct ContentView: View {
             if stats.freezeJustEarned {
                 HStack(spacing: 6) {
                     Image(systemName: "snowflake")
-                        .foregroundColor(Theme.safelight)
+                        .foregroundColor(Theme.cream)
                     Text("You earned a streak freeze")
                         .font(.subheadline)
-                        .foregroundColor(Theme.pencil)
+                        .foregroundColor(Theme.dim)
                 }
             }
 
@@ -274,8 +305,9 @@ struct ContentView: View {
                     albumGrid
                 }
             }
-            .background(Theme.paper)
+            .background(Theme.stage)
             .navigationTitle("Albums")
+            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -310,13 +342,13 @@ struct ContentView: View {
                 HStack {
                     Text("Showing only the photos you’ve shared.")
                         .font(.footnote)
-                        .foregroundColor(Theme.pencil)
+                        .foregroundColor(Theme.dim)
                     Spacer()
                     Button("Manage") {
                         presentLimitedLibraryPicker()
                     }
                     .font(.footnote.weight(.semibold))
-                    .foregroundColor(Theme.safelight)
+                    .foregroundColor(Theme.cream)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -365,15 +397,15 @@ struct ContentView: View {
         VStack(spacing: 12) {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(.system(size: 40))
-                .foregroundColor(Theme.safelight)
+                .foregroundColor(Theme.cream)
 
             Text("Leftover needs your library")
                 .font(Theme.title)
                 .foregroundColor(Theme.ink)
 
-            Text("Allow photo access in Settings to start cleaning. Photos stay on your phone — nothing is uploaded, ever.")
+            Text("Allow photo access in Settings. Nothing ever leaves your phone.")
                 .font(.subheadline)
-                .foregroundColor(Theme.pencil)
+                .foregroundColor(Theme.dim)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
 
@@ -392,17 +424,17 @@ struct ContentView: View {
         VStack(spacing: 12) {
             Image(systemName: "sparkles")
                 .font(.system(size: 36))
-                .foregroundColor(Theme.safelight)
+                .foregroundColor(Theme.cream)
 
             Text("Nothing leftover")
                 .font(Theme.title)
                 .foregroundColor(Theme.ink)
 
-            Text("This album is spotless. Nice work.")
+            Text("Already spotless.")
                 .font(.subheadline)
-                .foregroundColor(Theme.pencil)
+                .foregroundColor(Theme.dim)
 
-            Button(sessionSource == .album ? "Back to albums" : "Back home") {
+            Button(sessionSource == .album ? "Albums" : "Home") {
                 withAnimation(Theme.settle) {
                     if sessionSource == .album {
                         resetToAlbumPicker()
@@ -419,242 +451,423 @@ struct ContentView: View {
 
 
 
+    // MARK: - Swipe screen (the theater)
+
     var swipeCard: some View {
         ZStack {
-            VStack(spacing: 12) {
-                Spacer(minLength: 40)
+            // Edge glows — the decision colors bleed in from the screen
+            // edges as the card is dragged toward them.
+            HStack(spacing: 0) {
+                LinearGradient(colors: [Theme.toss.opacity(0.55), .clear],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 110)
+                    .opacity(dragProgress(-cardOffset.width))
+                Spacer(minLength: 0)
+                LinearGradient(colors: [.clear, Theme.keep.opacity(0.55)],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(width: 110)
+                    .opacity(dragProgress(cardOffset.width))
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
 
-                ZStack {
-                    if let asset = currentAsset {
-                        ZStack(alignment: .topTrailing) {
-                            PhotoAssetImage(asset: asset)
-                                .frame(height: 450)
-                                .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-                                .shadow(color: .black.opacity(0.18), radius: 12, y: 6)
-                                .overlay(alignment: .topLeading) {
-                                    DecisionStamp(isKeep: true)
-                                        .opacity(min(max(Double(dragOffset.width) - 20, 0) / 100, 1))
-                                        .padding(20)
-                                }
-                                .overlay(alignment: .topTrailing) {
-                                    DecisionStamp(isKeep: false)
-                                        .opacity(min(max(Double(-dragOffset.width) - 20, 0) / 100, 1))
-                                        .padding(20)
-                                }
-                                .padding(.horizontal)
-                                .transition(.scale.combined(with: .opacity))
-                                .offset(x: dragOffset.width)
-                                .rotationEffect(.degrees(Double(dragOffset.width / 20)))
-                                .gesture(
-                                    DragGesture()
-                                        .updating($dragOffset) { value, state, _ in
-                                            state = value.translation
-                                        }
-                                        .onEnded { value in
-                                            withAnimation(Theme.flick) {
-                                                if value.translation.width < -100 {
-                                                    Haptics.impact(.rigid)
-                                                    toBeDeleted.append(asset)
-                                                    totalSize += assetFileSize(asset)
-                                                    currentIndex += 1
-                                                    moveToNextPhoto()
-                                                } else if value.translation.width > 100 {
-                                                    Haptics.impact(.soft)
-                                                    currentIndex += 1
-                                                    moveToNextPhoto()
-                                                }
-                                            }
-                                        }
-                                )
-                                .onTapGesture(count: 2) {
-                                    Haptics.impact(.light)
+            VStack(spacing: 14) {
+                reviewTopBar
+                counterRow
 
-                                    guard let asset = currentAsset else { return }
-                                    isAddingToFavorites = !asset.isFavorite
-                                    showHeartAnimation = true
+                Spacer(minLength: 8)
 
-                                    if isAddingToFavorites {
-                                        heartOpacity = 1.0
-                                        heartRotation = 0
-                                        heartScale = 0.8
+                cardStack
 
-                                        withAnimation(Theme.pop) {
-                                            heartScale = 1.2
-                                        }
-                                    } else {
-                                        heartScale = 1.0
-                                        heartOpacity = 0.6
-
-                                        withAnimation(Animation.linear(duration: 0.15).repeatCount(4, autoreverses: true)) {
-                                            shakeOffset = 6
-                                            heartRotation = -10
-                                        }
-
-                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                            shakeOffset = 0
-                                            heartRotation = 0
-
-                                            withAnimation(.easeInOut(duration: 0.4)) {
-                                                heartScale = 0.6
-                                                heartOpacity = 0.0
-                                            }
-                                        }
-                                    }
-
-                                    toggleFavorite(asset)
-
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                                        showHeartAnimation = false
-                                        heartOpacity = 0.7
-                                        heartScale = 0.8
-                                        heartRotation = 0
-                                        shakeOffset = 0
-                                    }
-                                }
-
-                                .id(asset.localIdentifier)
-                                .accessibilityElement()
-                                .accessibilityLabel(asset.isFavorite ? "Photo \(currentIndex + 1), Favorited" : "Photo \(currentIndex + 1)")
-                                .accessibilityHint(asset.isFavorite ? "Double tap to remove from favorites" : "Double tap to add to favorites")
-                                .accessibilityAddTraits([.isImage])
-
-                                .overlay(
-                                    Group {
-                                        if showHeartAnimation {
-                                            Image(systemName: "heart.fill")
-                                                .resizable()
-                                                .foregroundColor(Theme.safelight)
-                                                .frame(width: 30, height: 30)
-                                                .scaleEffect(heartScale)
-                                                .rotationEffect(.degrees(heartRotation))
-                                                .offset(x: shakeOffset)
-                                                .opacity(heartOpacity)
-                                        }
-                                    }
-                                )
-
-                            if asset.isFavorite {
-                                Image(systemName: "heart.fill")
-                                    .foregroundColor(Color.white.opacity(0.5))
-                                    .font(.system(size: 22, weight: .regular))
-                                    .padding(.top, 8)
-                                    .padding(.trailing, 12)
-                            }
-                        }
-                    }
-                }
-
-                if currentIndex > 0 {
-                    Button(action: {
-                        withAnimation(Theme.settle) {
-                            currentIndex -= 1
-                            let asset = photoAssets[currentIndex]
-                            if toBeDeleted.contains(asset) {
-                                totalSize -= assetFileSize(asset)
-                                toBeDeleted.removeAll { $0 == asset }
-                            }
-                            currentAsset = asset
-                        }
-                    }) {
-                        Label("Undo", systemImage: "arrow.uturn.left")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundColor(Theme.ink)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
-                    }
-                    .padding(.top, 8)
-                    .accessibilityLabel("Undo last action")
-                    .accessibilityHint("Restores the last skipped or deleted photo")
-                }
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        let visibleIndices = Array(currentIndex..<min(currentIndex + 7, photoAssets.count))
-
-                        ForEach(visibleIndices, id: \.self) { index in
-                            let asset = photoAssets[index]
-                            let isCurrent = asset.localIdentifier == currentAsset?.localIdentifier
-
-                            PhotoThumbnailView(asset: asset)
-                                .frame(width: isCurrent ? 52 : 44, height: isCurrent ? 70 : 58)
-                                .cornerRadius(isCurrent ? 8 : 6)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: isCurrent ? 8 : 6)
-                                        .stroke(isCurrent ? Theme.safelight : Color.clear, lineWidth: 2)
-                                )
-                                .onTapGesture {
-                                    withAnimation(Theme.settle) {
-                                        currentIndex = index
-                                        currentAsset = asset
-                                    }
-                                }
-                                .accessibilityElement()
-                                .accessibilityLabel("Thumbnail of photo \(index + 1)")
-                                .accessibilityAddTraits(.isButton)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.top, 6)
-                }
-
-                Text("\(currentIndex + 1) / \(photoAssets.count)")
-                    .font(.footnote.monospacedDigit())
-                    .foregroundColor(Theme.pencil)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 4)
-                    .overlay(Capsule().stroke(Theme.hairline, lineWidth: 1))
+                Spacer(minLength: 8)
 
                 if !toBeDeleted.isEmpty {
-                    Button("Toss \(toBeDeleted.count) photo\(toBeDeleted.count == 1 ? "" : "s")") {
-                        deleteMarkedPhotos()
-                    }
-                    .buttonStyle(TossButtonStyle())
-                    .padding(.horizontal)
-                    .padding(.top)
-                    .accessibilityLabel("Toss \(toBeDeleted.count) selected photo\(toBeDeleted.count > 1 ? "s" : "")")
-                    .accessibilityHint("Deletes all marked photos permanently")
+                    tossNowPill
                 }
 
-                Spacer()
+                actionDock
             }
-
-            VStack {
-                HStack {
-                    Button(action: {
-                        withAnimation(Theme.settle) {
-                            if sessionSource == .album {
-                                resetToAlbumPicker()
-                            } else {
-                                returnHome()
-                            }
-                        }
-                    }) {
-                        Label(sessionSource == .album ? "Albums" : "Home", systemImage: "chevron.backward")
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
-                            .foregroundColor(Theme.ink)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(.ultraThinMaterial, in: Capsule())
-                    }
-                    .padding(.leading, 16)
-                    .accessibilityLabel(sessionSource == .album ? "Back to albums" : "Back to home")
-
-                    Spacer()
-                }
-                Spacer()
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
+        }
+        .alert("Toss the \(toBeDeleted.count) you marked?", isPresented: $showExitAlert) {
+            Button("Toss \(toBeDeleted.count)", role: .destructive) {
+                deleteMarkedPhotos()
             }
-            .padding(.top, 10)
+            Button("Discard marks") {
+                withAnimation(Theme.settle) { exitSession() }
+            }
+            Button("Cancel", role: .cancel) {}
         }
     }
 
+    private func dragProgress(_ distance: CGFloat) -> Double {
+        Double(min(max(distance - 24, 0) / 220, 1))
+    }
+
+    private var reviewTopBar: some View {
+        HStack(spacing: 14) {
+            Button {
+                if toBeDeleted.isEmpty {
+                    withAnimation(Theme.settle) { exitSession() }
+                } else {
+                    showExitAlert = true
+                }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(Theme.ink)
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .accessibilityLabel("End session")
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Theme.hairline)
+                        .frame(height: 4)
+                    Capsule()
+                        .fill(Theme.cream)
+                        .frame(width: max(geo.size.width * progressFraction, 4), height: 4)
+                        .animation(Theme.settle, value: currentIndex)
+                }
+                .frame(maxHeight: .infinity, alignment: .center)
+            }
+            .frame(height: 40)
+            .accessibilityElement()
+            .accessibilityLabel("Reviewed \(currentIndex) of \(photoAssets.count)")
+
+            Button("Keep all") {
+                keepAll()
+            }
+            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .foregroundColor(Theme.ink)
+            .padding(.horizontal, 14)
+            .frame(height: 40)
+            .background(.ultraThinMaterial, in: Capsule())
+            .accessibilityHint("Keeps every remaining photo and ends the session")
+        }
+    }
+
+    private var progressFraction: CGFloat {
+        photoAssets.isEmpty ? 0 : CGFloat(currentIndex) / CGFloat(photoAssets.count)
+    }
+
+    private var counterRow: some View {
+        HStack {
+            HStack(spacing: 5) {
+                Image(systemName: "trash")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("\(toBeDeleted.count)")
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+            }
+            .foregroundColor(Theme.toss)
+            .accessibilityElement()
+            .accessibilityLabel("\(toBeDeleted.count) marked to toss")
+
+            Spacer()
+
+            HStack(spacing: 5) {
+                Text("\(max(currentIndex - toBeDeleted.count, 0))")
+                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundColor(Theme.keep)
+            .accessibilityElement()
+            .accessibilityLabel("\(max(currentIndex - toBeDeleted.count, 0)) kept")
+        }
+        .padding(.horizontal, 6)
+    }
+
+    private var stackIndices: [Int] {
+        guard currentIndex < photoAssets.count else { return [] }
+        return Array(currentIndex..<min(currentIndex + 3, photoAssets.count))
+    }
+
+    private var cardStack: some View {
+        ZStack {
+            ForEach(stackIndices.reversed(), id: \.self) { index in
+                photoCard(asset: photoAssets[index], depth: index - currentIndex)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 470)
+    }
+
+    // One card view for every depth so a peeking card animates smoothly
+    // into the top position when the stack advances.
+    private func photoCard(asset: PHAsset, depth: Int) -> some View {
+        let isTop = depth == 0
+        let peekScale: CGFloat = depth == 1 ? 0.94 : 0.88
+        let peekLift: CGFloat = depth == 1 ? -16 : -30
+
+        // Opaque surface mat behind the aspect-fit photo — the full image
+        // stays visible for judging, and peeking cards can't bleed through.
+        return ZStack {
+            RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                .fill(Theme.surface)
+            PhotoAssetImage(asset: asset)
+                .padding(6)
+        }
+            .frame(height: 440)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                    .strokeBorder(Theme.hairline, lineWidth: 1)
+            )
+            .overlay(alignment: .topLeading) {
+                DecisionStamp(isKeep: true)
+                    .opacity(isTop ? dragProgress(cardOffset.width) : 0)
+                    .padding(20)
+            }
+            .overlay(alignment: .topTrailing) {
+                DecisionStamp(isKeep: false)
+                    .opacity(isTop ? dragProgress(-cardOffset.width) : 0)
+                    .padding(20)
+            }
+            .overlay(alignment: .topTrailing) {
+                if isTop && asset.isFavorite {
+                    Image(systemName: "star.fill")
+                        .foregroundColor(Theme.cream.opacity(0.85))
+                        .font(.system(size: 18, weight: .semibold))
+                        .padding(.top, 14)
+                        .padding(.trailing, 16)
+                        .shadow(color: .black.opacity(0.5), radius: 4)
+                }
+            }
+            .overlay(
+                Group {
+                    if isTop && showHeartAnimation {
+                        Image(systemName: "heart.fill")
+                            .resizable()
+                            .foregroundColor(Theme.cream)
+                            .frame(width: 34, height: 34)
+                            .scaleEffect(heartScale)
+                            .rotationEffect(.degrees(heartRotation))
+                            .offset(x: shakeOffset)
+                            .opacity(heartOpacity)
+                    }
+                }
+            )
+            .shadow(color: .black.opacity(isTop ? 0.55 : 0.3),
+                    radius: isTop ? 22 : 10, y: isTop ? 12 : 6)
+            .scaleEffect(isTop ? 1 : peekScale)
+            .offset(y: isTop ? 0 : peekLift)
+            .opacity(isTop ? 1 : (depth == 1 ? 0.7 : 0.4))
+            .offset(x: isTop ? cardOffset.width : 0,
+                    y: isTop ? cardOffset.height * 0.35 : 0)
+            .rotationEffect(.degrees(isTop ? Double(cardOffset.width / 18) : 0),
+                            anchor: .bottom)
+            .zIndex(Double(3 - depth))
+            .gesture(dragGesture, including: isTop && !isThrowingCard ? .all : .none)
+            .onTapGesture(count: 2) {
+                if isTop { favoriteCurrent() }
+            }
+            .id(asset.localIdentifier)
+            .accessibilityElement()
+            .accessibilityLabel(isTop
+                ? (asset.isFavorite ? "Photo \(currentIndex + 1), favorited" : "Photo \(currentIndex + 1)")
+                : "Upcoming photo")
+            .accessibilityHint(isTop ? "Double tap to favorite. Swipe left to toss, right to keep." : "")
+            .accessibilityAddTraits(.isImage)
+            .accessibilityHidden(!isTop)
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { value in
+                cardOffset = value.translation
+            }
+            .onEnded { value in
+                let projected = value.predictedEndTranslation.width
+                if value.translation.width < -110 || projected < -280 {
+                    throwCard(toss: true)
+                } else if value.translation.width > 110 || projected > 280 {
+                    throwCard(toss: false)
+                } else {
+                    withAnimation(Theme.settle) { cardOffset = .zero }
+                }
+            }
+    }
+
+    private var tossNowPill: some View {
+        Button {
+            deleteMarkedPhotos()
+        } label: {
+            Text("Toss \(toBeDeleted.count)")
+                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 10)
+                .background(Theme.toss, in: Capsule())
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .transition(.scale.combined(with: .opacity))
+        .accessibilityLabel("Toss \(toBeDeleted.count) marked photos now")
+    }
+
+    private var actionDock: some View {
+        HStack(spacing: 4) {
+            dockButton("trash", tint: Theme.toss, label: "Toss this photo") {
+                throwCard(toss: true)
+            }
+            dockButton("arrow.uturn.left",
+                       tint: currentIndex > 0 ? Theme.ink : Theme.dim.opacity(0.35),
+                       label: "Undo") {
+                undoLast()
+            }
+            .disabled(currentIndex == 0)
+            dockButton(currentAsset?.isFavorite == true ? "star.fill" : "star",
+                       tint: Theme.cream, label: "Favorite") {
+                favoriteCurrent()
+            }
+            dockButton("checkmark", tint: Theme.keep, label: "Keep this photo") {
+                throwCard(toss: false)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+        .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+    }
+
+    private func dockButton(_ icon: String, tint: Color, label: String,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(tint)
+                .frame(width: 60, height: 52)
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .accessibilityLabel(label)
+    }
+
+    // MARK: - Swipe actions (one code path for gestures and dock buttons)
+
+    func throwCard(toss: Bool) {
+        guard !isThrowingCard, currentIndex < photoAssets.count else { return }
+        let asset = photoAssets[currentIndex]
+        Haptics.impact(toss ? .rigid : .soft)
+
+        if UIAccessibility.isReduceMotionEnabled {
+            commitSwipe(toss: toss, asset: asset)
+            return
+        }
+
+        isThrowingCard = true
+        let direction: CGFloat = toss ? -1 : 1
+        withAnimation(Theme.throwOut) {
+            cardOffset = CGSize(width: direction * 640,
+                                height: cardOffset.height * 0.35 - 30)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
+            commitSwipe(toss: toss, asset: asset)
+            isThrowingCard = false
+        }
+    }
+
+    func commitSwipe(toss: Bool, asset: PHAsset) {
+        if toss {
+            toBeDeleted.append(asset)
+            totalSize += assetFileSize(asset)
+        }
+        withAnimation(Theme.stackAdvance) {
+            currentIndex += 1
+            moveToNextPhoto()
+        }
+        cardOffset = .zero
+    }
+
+    func undoLast() {
+        guard currentIndex > 0 else { return }
+        Haptics.impact(.light)
+        withAnimation(Theme.stackAdvance) {
+            currentIndex -= 1
+            let asset = photoAssets[currentIndex]
+            if toBeDeleted.contains(asset) {
+                totalSize -= assetFileSize(asset)
+                toBeDeleted.removeAll { $0 == asset }
+            }
+            currentAsset = asset
+        }
+        cardOffset = .zero
+    }
+
+    func keepAll() {
+        Haptics.impact(.soft)
+        withAnimation(Theme.settle) {
+            currentIndex = photoAssets.count
+            moveToNextPhoto()
+        }
+    }
+
+    func exitSession() {
+        toBeDeleted = []
+        totalSize = 0
+        if sessionSource == .album {
+            resetToAlbumPicker()
+        } else {
+            returnHome()
+        }
+    }
+
+    func favoriteCurrent() {
+        Haptics.impact(.light)
+        guard let asset = currentAsset else { return }
+        isAddingToFavorites = !asset.isFavorite
+        showHeartAnimation = true
+
+        if isAddingToFavorites {
+            heartOpacity = 1.0
+            heartRotation = 0
+            heartScale = 0.8
+
+            withAnimation(Theme.pop) {
+                heartScale = 1.2
+            }
+        } else {
+            heartScale = 1.0
+            heartOpacity = 0.6
+
+            withAnimation(Animation.linear(duration: 0.15).repeatCount(4, autoreverses: true)) {
+                shakeOffset = 6
+                heartRotation = -10
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                shakeOffset = 0
+                heartRotation = 0
+
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    heartScale = 0.6
+                    heartOpacity = 0.0
+                }
+            }
+        }
+
+        toggleFavorite(asset)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            showHeartAnimation = false
+            heartOpacity = 0.7
+            heartScale = 0.8
+            heartRotation = 0
+            shakeOffset = 0
+        }
+    }
 
     private var sessionEndTitle: String {
         switch sessionSource {
-        case .album:       return "That’s the whole album!"
-        case .burst:       return "That’s today’s burst!"
-        case .screenshots: return "That’s every screenshot!"
-        case .timeCapsule: return "That’s the whole capsule!"
+        case .album:       return "Album clear."
+        case .burst:       return "Burst done."
+        case .screenshots: return "Screenshots clear."
+        case .timeCapsule: return "Capsule clear."
         }
     }
 
@@ -665,11 +878,11 @@ struct ContentView: View {
                     .font(Theme.title)
                     .foregroundColor(Theme.ink)
 
-                Text("Nothing marked — nice and tidy.")
+                Text("Nothing marked.")
                     .font(.subheadline)
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
 
-                Button(sessionSource == .album ? "Choose another album" : "Back home") {
+                Button(sessionSource == .album ? "Albums" : "Home") {
                     withAnimation(Theme.settle) {
                         if sessionSource == .album {
                             resetToAlbumPicker()
@@ -686,11 +899,11 @@ struct ContentView: View {
                     .font(Theme.title)
                     .foregroundColor(Theme.ink)
 
-                Text("\(toBeDeleted.count) photo\(toBeDeleted.count == 1 ? "" : "s") ready to toss.")
+                Text("\(toBeDeleted.count) ready to toss.")
                     .font(.subheadline)
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
 
-                Button("Toss \(toBeDeleted.count) photo\(toBeDeleted.count == 1 ? "" : "s")") {
+                Button("Toss \(toBeDeleted.count)") {
                     deleteMarkedPhotos()
                 }
                 .buttonStyle(TossButtonStyle())
@@ -708,7 +921,7 @@ struct ContentView: View {
                     .buttonStyle(QuietButtonStyle())
                     .padding(.horizontal)
                 } else {
-                    Button(sessionSource == .album ? "Choose another album" : "Back home") {
+                    Button(sessionSource == .album ? "Albums" : "Home") {
                         withAnimation(Theme.settle) {
                             if sessionSource == .album {
                                 resetToAlbumPicker()
@@ -821,9 +1034,9 @@ struct ContentView: View {
                     }
                     if totalSize > 0 {
                         let formattedSize = ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
-                        showToast("Tossed \(count) · freed \(formattedSize)")
+                        showToast("\(count) tossed · \(formattedSize) freed")
                     } else {
-                        showToast("Tossed \(count) photo\(count == 1 ? "" : "s")")
+                        showToast("\(count) tossed")
                     }
 
                     self.toBeDeleted.removeAll()
@@ -843,7 +1056,7 @@ struct ContentView: View {
                 } else {
                     // Also reached when the user taps "Don't Allow" on the
                     // system dialog — keep all state so they can retry.
-                    showToast("Couldn’t toss those — your photos are untouched.")
+                    showToast("Couldn’t toss. Photos untouched.")
                 }
             }
         }
@@ -974,12 +1187,28 @@ struct ContentView: View {
             PHAsset.fetchAssets(with: .image, options: recentOptions)
                 .enumerateObjects { asset, _, _ in recent.append(asset) }
 
+            // Backdrop for the photo-backed burst card (blurred under a scrim).
+            var backdrop: UIImage?
+            if let first = burst.first {
+                let req = PHImageRequestOptions()
+                req.deliveryMode = .fastFormat
+                req.isSynchronous = true
+                req.isNetworkAccessAllowed = true
+                PHImageManager.default().requestImage(for: first,
+                                                      targetSize: CGSize(width: 600, height: 600),
+                                                      contentMode: .aspectFill,
+                                                      options: req) { result, _ in
+                    backdrop = result
+                }
+            }
+
             DispatchQueue.main.async {
                 self.screenshotAssets = screenshots
                 self.videoCount = videos
                 self.timeCapsuleAssets = capsule
                 self.burstAssets = burst
                 self.burstIsFallback = fallback
+                self.burstBackdrop = backdrop
                 self.recentAssets = recent
                 self.isLoadingHome = false
             }
@@ -1086,7 +1315,7 @@ struct AlbumGridItem: View {
                         .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
                 } else {
                     RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
-                        .fill(Theme.print)
+                        .fill(Theme.surface)
                         .frame(height: 120)
                         .overlay(
                             RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
@@ -1101,7 +1330,7 @@ struct AlbumGridItem: View {
 
                 Text("\(count) Photos")
                     .font(.caption.monospacedDigit())
-                    .foregroundColor(Theme.pencil)
+                    .foregroundColor(Theme.dim)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -1158,7 +1387,7 @@ struct PhotoThumbnailView: View {
                     .scaledToFill()
                     .clipped()
             } else {
-                Theme.print
+                Theme.surface
                     .overlay(ProgressView())
             }
         }
