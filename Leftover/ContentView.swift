@@ -3,13 +3,17 @@ import Photos
 import PhotosUI
 import UIKit
 
+enum SessionSource {
+    case album, burst, screenshots, timeCapsule
+}
+
 struct ContentView: View {
     @State private var photoAssets: [PHAsset] = []
     @State private var currentIndex = 0
     @State private var toBeDeleted: [PHAsset] = []
     @State private var totalSize: Int64 = 0
     @State private var showDeleteButton = false
-    @State private var showAlbumPicker = true
+    @State private var showAlbumPicker = false
     @State private var selectedAlbum: PHAssetCollection? = nil
     @State private var currentAsset: PHAsset? = nil
     @State private var isDeleting = false
@@ -28,7 +32,22 @@ struct ContentView: View {
     @State private var pulse = false
     @State private var heartRotation: Double = 0
     @State private var heartOpacity: Double = 1.0
-    @State private var showSplashScreen = true
+    @State private var showSplashScreen = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+
+    @StateObject private var stats = Stats()
+    @StateObject private var notifications = NotificationManager()
+    @State private var sessionSource: SessionSource = .album
+    @State private var sessionActive = false
+    @State private var showBurstComplete = false
+    @State private var showSettings = false
+    @State private var isLoadingHome = false
+    @State private var screenshotAssets: [PHAsset] = []
+    @State private var timeCapsuleAssets: [PHAsset] = []
+    @State private var burstAssets: [PHAsset] = []
+    @State private var burstIsFallback = false
+    @State private var videoCount = 0
+    @State private var recentAssets: [PHAsset] = []
+    @Environment(\.scenePhase) private var scenePhase
 
     @GestureState private var dragOffset: CGSize = .zero
 
@@ -43,12 +62,16 @@ struct ContentView: View {
             } else if isLoadingPhotos {
                 ProgressView("Opening \(selectedAlbum?.localizedTitle ?? "All Photos")…")
                     .foregroundColor(Theme.pencil)
-            } else if currentIndex < photoAssets.count {
+            } else if sessionActive && currentIndex < photoAssets.count {
                 swipeCard
-            } else if showDeleteButton {
+            } else if sessionActive && showDeleteButton {
                 deleteConfirmation
-            } else {
+            } else if sessionActive {
                 emptyAlbumView
+            } else if showBurstComplete {
+                burstCompleteView
+            } else {
+                homeView
             }
 
             if isDeleting {
@@ -83,6 +106,16 @@ struct ContentView: View {
                 currentAsset = photoAssets[newIndex]
             }
         }
+        .onChange(of: scenePhase) { phase in
+            // Reminder only fires if today's burst isn't done — refresh on
+            // every backgrounding so completing a burst cancels the nudge.
+            if phase == .background {
+                notifications.reschedule(burstDoneToday: stats.isBurstDoneToday)
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            SettingsView(notifications: notifications, stats: stats)
+        }
     }
     var splashScreenView: some View {
         VStack {
@@ -106,9 +139,9 @@ struct ContentView: View {
             .padding(.bottom, 28)
 
             Button("Start Organizing") {
+                stats.hasLaunchedBefore = true
                 withAnimation(Theme.settle) {
                     showSplashScreen = false
-                    showAlbumPicker = true
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -144,6 +177,94 @@ struct ContentView: View {
     }
 
 
+    var homeView: some View {
+        Group {
+            if photoAuthStatus == .denied || photoAuthStatus == .restricted {
+                permissionDeniedView
+            } else {
+                HomeView(
+                    freedBytes: stats.lifetimeFreedBytes,
+                    streakCount: stats.streakCount,
+                    streakPop: stats.streakJustIncremented,
+                    burstCount: burstAssets.count,
+                    burstIsFallback: burstIsFallback,
+                    burstDone: stats.isBurstDoneToday,
+                    screenshotCount: screenshotAssets.count,
+                    videoCount: videoCount,
+                    timeCapsuleCount: timeCapsuleAssets.count,
+                    recentAssets: recentAssets,
+                    isLoading: isLoadingHome,
+                    onSettings: { showSettings = true },
+                    onStartBurst: { startSession(.burst, assets: burstAssets) },
+                    onScreenshots: { startSession(.screenshots, assets: screenshotAssets) },
+                    onTimeCapsule: { startSession(.timeCapsule, assets: timeCapsuleAssets) },
+                    onAlbums: {
+                        withAnimation(Theme.settle) { showAlbumPicker = true }
+                    },
+                    onRecent: { index in loadPhotos(startAt: index) },
+                    onComingSoon: { message in showToast(message) }
+                )
+            }
+        }
+        .onAppear {
+            PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
+                DispatchQueue.main.async {
+                    self.photoAuthStatus = status
+                    if status == .authorized || status == .limited {
+                        self.loadHomeData()
+                    }
+                }
+            }
+        }
+    }
+
+    var burstCompleteView: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 44))
+                .foregroundColor(Theme.safelight)
+
+            Text("Today’s burst is complete")
+                .font(Theme.title)
+                .foregroundColor(Theme.ink)
+                .multilineTextAlignment(.center)
+
+            Text("You’ve kept what matters today. Come back tomorrow for a new memory.")
+                .font(.subheadline)
+                .foregroundColor(Theme.pencil)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+
+            if stats.streakJustIncremented {
+                HStack(spacing: 6) {
+                    Image(systemName: "flame.fill")
+                        .foregroundColor(Theme.safelight)
+                    Text("\(stats.streakCount)-day streak")
+                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        .foregroundColor(Theme.ink)
+                }
+            }
+
+            if stats.freezeJustEarned {
+                HStack(spacing: 6) {
+                    Image(systemName: "snowflake")
+                        .foregroundColor(Theme.safelight)
+                    Text("You earned a streak freeze")
+                        .font(.subheadline)
+                        .foregroundColor(Theme.pencil)
+                }
+            }
+
+            Button("Done") {
+                withAnimation(Theme.settle) { returnHome() }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.horizontal, 64)
+            .padding(.top, 8)
+        }
+        .padding()
+    }
+
     var albumPickerView: some View {
         NavigationStack {
             Group {
@@ -155,6 +276,21 @@ struct ContentView: View {
             }
             .background(Theme.paper)
             .navigationTitle("Albums")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button {
+                        withAnimation(Theme.settle) {
+                            showAlbumPicker = false
+                        }
+                    } label: {
+                        Label("Home", systemImage: "chevron.backward")
+                            .labelStyle(.titleAndIcon)
+                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .foregroundColor(Theme.ink)
+                    }
+                    .accessibilityLabel("Back to home")
+                }
+            }
             .onAppear {
                 PHPhotoLibrary.requestAuthorization(for: .readWrite) { status in
                     DispatchQueue.main.async {
@@ -266,9 +402,13 @@ struct ContentView: View {
                 .font(.subheadline)
                 .foregroundColor(Theme.pencil)
 
-            Button("Back to albums") {
+            Button(sessionSource == .album ? "Back to albums" : "Back home") {
                 withAnimation(Theme.settle) {
-                    resetToAlbumPicker()
+                    if sessionSource == .album {
+                        resetToAlbumPicker()
+                    } else {
+                        returnHome()
+                    }
                 }
             }
             .buttonStyle(PrimaryButtonStyle())
@@ -483,10 +623,14 @@ struct ContentView: View {
                 HStack {
                     Button(action: {
                         withAnimation(Theme.settle) {
-                            resetToAlbumPicker()
+                            if sessionSource == .album {
+                                resetToAlbumPicker()
+                            } else {
+                                returnHome()
+                            }
                         }
                     }) {
-                        Label("Albums", systemImage: "chevron.backward")
+                        Label(sessionSource == .album ? "Albums" : "Home", systemImage: "chevron.backward")
                             .font(.system(size: 15, weight: .semibold, design: .rounded))
                             .foregroundColor(Theme.ink)
                             .padding(.horizontal, 14)
@@ -494,7 +638,7 @@ struct ContentView: View {
                             .background(.ultraThinMaterial, in: Capsule())
                     }
                     .padding(.leading, 16)
-                    .accessibilityLabel("Back to albums")
+                    .accessibilityLabel(sessionSource == .album ? "Back to albums" : "Back to home")
 
                     Spacer()
                 }
@@ -505,10 +649,19 @@ struct ContentView: View {
     }
 
 
+    private var sessionEndTitle: String {
+        switch sessionSource {
+        case .album:       return "That’s the whole album!"
+        case .burst:       return "That’s today’s burst!"
+        case .screenshots: return "That’s every screenshot!"
+        case .timeCapsule: return "That’s the whole capsule!"
+        }
+    }
+
     var deleteConfirmation: some View {
         VStack(spacing: 16) {
             if toBeDeleted.isEmpty {
-                Text("That’s the whole album!")
+                Text(sessionEndTitle)
                     .font(Theme.title)
                     .foregroundColor(Theme.ink)
 
@@ -516,16 +669,20 @@ struct ContentView: View {
                     .font(.subheadline)
                     .foregroundColor(Theme.pencil)
 
-                Button("Choose another album") {
+                Button(sessionSource == .album ? "Choose another album" : "Back home") {
                     withAnimation(Theme.settle) {
-                        resetToAlbumPicker()
+                        if sessionSource == .album {
+                            resetToAlbumPicker()
+                        } else {
+                            returnHome()
+                        }
                     }
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .padding(.horizontal)
                 .padding(.top, 8)
             } else {
-                Text("That’s the whole album!")
+                Text(sessionEndTitle)
                     .font(Theme.title)
                     .foregroundColor(Theme.ink)
 
@@ -540,13 +697,29 @@ struct ContentView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
 
-                Button("Choose another album") {
-                    withAnimation(Theme.settle) {
-                        resetToAlbumPicker()
+                if sessionSource == .burst {
+                    // Backing out of a toss still finishes the burst — the
+                    // habit is showing up, not deleting.
+                    Button("Keep them instead") {
+                        toBeDeleted = []
+                        totalSize = 0
+                        finishBurst()
                     }
+                    .buttonStyle(QuietButtonStyle())
+                    .padding(.horizontal)
+                } else {
+                    Button(sessionSource == .album ? "Choose another album" : "Back home") {
+                        withAnimation(Theme.settle) {
+                            if sessionSource == .album {
+                                resetToAlbumPicker()
+                            } else {
+                                returnHome()
+                            }
+                        }
+                    }
+                    .buttonStyle(QuietButtonStyle())
+                    .padding(.horizontal)
                 }
-                .buttonStyle(QuietButtonStyle())
-                .padding(.horizontal)
             }
         }
         .padding()
@@ -582,10 +755,52 @@ struct ContentView: View {
 
     func moveToNextPhoto() {
         if currentIndex >= photoAssets.count {
-            showDeleteButton = true
+            if sessionSource == .burst && toBeDeleted.isEmpty {
+                finishBurst()
+            } else {
+                showDeleteButton = true
+            }
         } else {
             currentAsset = photoAssets[currentIndex]
         }
+    }
+
+    func startSession(_ source: SessionSource, assets: [PHAsset], startAt: Int = 0) {
+        withAnimation(Theme.settle) {
+            sessionSource = source
+            photoAssets = assets
+            currentIndex = min(startAt, max(assets.count - 1, 0))
+            toBeDeleted = []
+            totalSize = 0
+            currentAsset = assets.indices.contains(currentIndex) ? assets[currentIndex] : nil
+            showDeleteButton = false
+            showBurstComplete = false
+            sessionActive = true
+        }
+    }
+
+    func finishBurst() {
+        Haptics.success()
+        stats.completeBurst()
+        notifications.reschedule(burstDoneToday: true)
+        sessionActive = false
+        showDeleteButton = false
+        withAnimation(Theme.settle) {
+            showBurstComplete = true
+        }
+    }
+
+    func returnHome() {
+        sessionActive = false
+        showAlbumPicker = false
+        showBurstComplete = false
+        photoAssets = []
+        currentIndex = 0
+        toBeDeleted = []
+        totalSize = 0
+        selectedAlbum = nil
+        currentAsset = nil
+        showDeleteButton = false
     }
 
     func deleteMarkedPhotos() {
@@ -598,6 +813,12 @@ struct ContentView: View {
                 if success {
                     Haptics.success()
                     let count = toBeDeleted.count
+                    stats.recordDelete(count: count, freed: totalSize)
+                    if count > 0 {
+                        // Any session that tosses ≥ 1 photo marks today complete.
+                        stats.completeBurst()
+                        notifications.reschedule(burstDoneToday: true)
+                    }
                     if totalSize > 0 {
                         let formattedSize = ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
                         showToast("Tossed \(count) · freed \(formattedSize)")
@@ -609,7 +830,16 @@ struct ContentView: View {
                     self.totalSize = 0
                     self.currentIndex = 0
                     self.showDeleteButton = false
-                    self.loadPhotos(from: self.selectedAlbum)
+                    switch sessionSource {
+                    case .album:
+                        self.loadPhotos(from: self.selectedAlbum)
+                    case .burst:
+                        sessionActive = false
+                        withAnimation(Theme.settle) { showBurstComplete = true }
+                    case .screenshots, .timeCapsule:
+                        withAnimation(Theme.settle) { returnHome() }
+                        loadHomeData()
+                    }
                 } else {
                     // Also reached when the user taps "Don't Allow" on the
                     // system dialog — keep all state so they can retry.
@@ -620,6 +850,7 @@ struct ContentView: View {
     }
 
     func resetToAlbumPicker() {
+        self.sessionActive = false
         self.showAlbumPicker = true
         self.photoAssets = []
         self.currentIndex = 0
@@ -655,7 +886,7 @@ struct ContentView: View {
         PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: root)
     }
 
-    func loadPhotos(from album: PHAssetCollection? = nil) {
+    func loadPhotos(from album: PHAssetCollection? = nil, startAt: Int = 0) {
         isLoadingPhotos = true
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -673,12 +904,84 @@ struct ContentView: View {
             assets.enumerateObjects { (asset, _, _) in result.append(asset) }
 
             DispatchQueue.main.async {
+                let start = min(startAt, max(result.count - 1, 0))
+                self.sessionSource = .album
+                self.sessionActive = true
                 self.photoAssets = result
-                self.currentIndex = 0
+                self.currentIndex = start
                 self.toBeDeleted = []
                 self.totalSize = 0
-                self.currentAsset = result.first
+                self.currentAsset = result.indices.contains(start) ? result[start] : nil
                 self.isLoadingPhotos = false
+            }
+        }
+    }
+
+    /// Computes everything the home dashboard shows: screenshot / video
+    /// counts, the "this week, years ago" time capsule set, today's burst
+    /// deck, and the recent strip. Runs per visit (roadmap Phase 1).
+    func loadHomeData() {
+        guard !isLoadingHome else { return }
+        isLoadingHome = true
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let newestFirst = [NSSortDescriptor(key: "creationDate", ascending: false)]
+
+            let screenshotOptions = PHFetchOptions()
+            screenshotOptions.predicate = NSPredicate(
+                format: "(mediaSubtypes & %d) != 0",
+                PHAssetMediaSubtype.photoScreenshot.rawValue)
+            screenshotOptions.sortDescriptors = newestFirst
+            var screenshots: [PHAsset] = []
+            PHAsset.fetchAssets(with: .image, options: screenshotOptions)
+                .enumerateObjects { asset, _, _ in screenshots.append(asset) }
+
+            let videos = PHAsset.fetchAssets(with: .video, options: nil).count
+
+            // "This week, years ago" — the current ISO week in each prior
+            // year, oldest year first so the burst starts furthest back.
+            var capsule: [PHAsset] = []
+            let calendar = Calendar(identifier: .iso8601)
+            let now = Date()
+            for yearsBack in stride(from: 15, through: 1, by: -1) {
+                guard let past = calendar.date(byAdding: .year, value: -yearsBack, to: now),
+                      let week = calendar.dateInterval(of: .weekOfYear, for: past) else { continue }
+                let options = PHFetchOptions()
+                options.predicate = NSPredicate(
+                    format: "creationDate >= %@ AND creationDate < %@",
+                    week.start as NSDate, week.end as NSDate)
+                options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+                PHAsset.fetchAssets(with: .image, options: options)
+                    .enumerateObjects { asset, _, _ in capsule.append(asset) }
+            }
+
+            // Burst: up to 10 memories; if the week is empty, sweep the
+            // newest 10 screenshots instead so the habit never dead-ends.
+            let burst: [PHAsset]
+            let fallback: Bool
+            if capsule.isEmpty {
+                burst = Array(screenshots.prefix(10))
+                fallback = true
+            } else {
+                burst = Array(capsule.prefix(10))
+                fallback = false
+            }
+
+            let recentOptions = PHFetchOptions()
+            recentOptions.sortDescriptors = newestFirst
+            recentOptions.fetchLimit = 9
+            var recent: [PHAsset] = []
+            PHAsset.fetchAssets(with: .image, options: recentOptions)
+                .enumerateObjects { asset, _, _ in recent.append(asset) }
+
+            DispatchQueue.main.async {
+                self.screenshotAssets = screenshots
+                self.videoCount = videos
+                self.timeCapsuleAssets = capsule
+                self.burstAssets = burst
+                self.burstIsFallback = fallback
+                self.recentAssets = recent
+                self.isLoadingHome = false
             }
         }
     }
