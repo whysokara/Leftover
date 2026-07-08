@@ -7,6 +7,11 @@ enum SessionSource {
     case album, burst, screenshots, timeCapsule
 }
 
+/// Where a review session was launched from — exits return here.
+enum SessionOrigin {
+    case home, albums
+}
+
 struct ContentView: View {
     @State private var photoAssets: [PHAsset] = []
     @State private var currentIndex = 0
@@ -37,6 +42,7 @@ struct ContentView: View {
     @StateObject private var stats = Stats()
     @StateObject private var notifications = NotificationManager()
     @State private var sessionSource: SessionSource = .album
+    @State private var sessionOrigin: SessionOrigin = .home
     @State private var sessionActive = false
     @State private var showBurstComplete = false
     @State private var showSettings = false
@@ -216,7 +222,7 @@ struct ContentView: View {
                     onAlbums: {
                         withAnimation(Theme.settle) { showAlbumPicker = true }
                     },
-                    onRecent: { index in loadPhotos(startAt: index) },
+                    onRecent: { index in loadPhotos(startAt: index, origin: .home) },
                     onComingSoon: { message in showToast(message) }
                 )
             }
@@ -232,7 +238,7 @@ struct ContentView: View {
                         // All Photos session (simctl launch … -LeftoverAutoSession).
                         if ProcessInfo.processInfo.arguments.contains("-LeftoverAutoSession"),
                            !self.sessionActive {
-                            self.loadPhotos()
+                            self.loadPhotos(origin: .home)
                         }
                         #endif
                     }
@@ -434,9 +440,9 @@ struct ContentView: View {
                 .font(.subheadline)
                 .foregroundColor(Theme.dim)
 
-            Button(sessionSource == .album ? "Albums" : "Home") {
+            Button(sessionOrigin == .albums ? "Albums" : "Home") {
                 withAnimation(Theme.settle) {
-                    if sessionSource == .album {
+                    if sessionOrigin == .albums {
                         resetToAlbumPicker()
                     } else {
                         returnHome()
@@ -619,16 +625,6 @@ struct ContentView: View {
                 RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
                     .strokeBorder(Theme.hairline, lineWidth: 1)
             )
-            .overlay(alignment: .topLeading) {
-                DecisionStamp(isKeep: true)
-                    .opacity(isTop ? dragProgress(cardOffset.width) : 0)
-                    .padding(20)
-            }
-            .overlay(alignment: .topTrailing) {
-                DecisionStamp(isKeep: false)
-                    .opacity(isTop ? dragProgress(-cardOffset.width) : 0)
-                    .padding(20)
-            }
             .overlay(alignment: .topTrailing) {
                 if isTop && asset.isFavorite {
                     Image(systemName: "star.fill")
@@ -810,7 +806,7 @@ struct ContentView: View {
     func exitSession() {
         toBeDeleted = []
         totalSize = 0
-        if sessionSource == .album {
+        if sessionOrigin == .albums {
             resetToAlbumPicker()
         } else {
             returnHome()
@@ -882,9 +878,9 @@ struct ContentView: View {
                     .font(.subheadline)
                     .foregroundColor(Theme.dim)
 
-                Button(sessionSource == .album ? "Albums" : "Home") {
+                Button(sessionOrigin == .albums ? "Albums" : "Home") {
                     withAnimation(Theme.settle) {
-                        if sessionSource == .album {
+                        if sessionOrigin == .albums {
                             resetToAlbumPicker()
                         } else {
                             returnHome()
@@ -921,9 +917,9 @@ struct ContentView: View {
                     .buttonStyle(QuietButtonStyle())
                     .padding(.horizontal)
                 } else {
-                    Button(sessionSource == .album ? "Albums" : "Home") {
+                    Button(sessionOrigin == .albums ? "Albums" : "Home") {
                         withAnimation(Theme.settle) {
-                            if sessionSource == .album {
+                            if sessionOrigin == .albums {
                                 resetToAlbumPicker()
                             } else {
                                 returnHome()
@@ -981,6 +977,7 @@ struct ContentView: View {
     func startSession(_ source: SessionSource, assets: [PHAsset], startAt: Int = 0) {
         withAnimation(Theme.settle) {
             sessionSource = source
+            sessionOrigin = .home
             photoAssets = assets
             currentIndex = min(startAt, max(assets.count - 1, 0))
             toBeDeleted = []
@@ -1099,7 +1096,7 @@ struct ContentView: View {
         PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: root)
     }
 
-    func loadPhotos(from album: PHAssetCollection? = nil, startAt: Int = 0) {
+    func loadPhotos(from album: PHAssetCollection? = nil, startAt: Int = 0, origin: SessionOrigin = .albums) {
         isLoadingPhotos = true
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -1119,6 +1116,7 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 let start = min(startAt, max(result.count - 1, 0))
                 self.sessionSource = .album
+                self.sessionOrigin = origin
                 self.sessionActive = true
                 self.photoAssets = result
                 self.currentIndex = start

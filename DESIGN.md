@@ -2,7 +2,7 @@
 
 ## The vibe
 
-A private screening room for your own past. The app is **dark-only**: photos glow on a near-black warm stage, chrome floats above them as frosted glass, and the only light besides the photos is cream. Decisions stay physical — cards get thrown, stamps ink on, the stack advances underneath.
+A private screening room for your own past. The app is **dark-only**: photos glow on a near-black warm stage, chrome floats above them as frosted glass, and the only light besides the photos is cream. Decisions stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
 
 Personality: quiet, confident, decisive. The photos do the talking; the interface whispers.
 
@@ -21,8 +21,8 @@ Warm-biased neutrals — never pure gray, never pure black. One accent (cream). 
 | `dim` | `#9C9285` | Secondary text |
 | `cream` | `#F2E9D8` | Accent: CTAs, progress fill, favorite star, glow |
 | `creamInk` | `#171310` | Text on cream buttons |
-| `keep` | `#82C795` | Right-swipe stamp, keep counter, edge glow |
-| `toss` | `#E56A55` | Left-swipe stamp, toss counter, delete buttons |
+| `keep` | `#82C795` | Keep counter, right edge glow |
+| `toss` | `#E56A55` | Toss counter, left edge glow, delete buttons |
 | `hairline` | `#2E2921` | Borders, progress track |
 
 Glass: `.ultraThinMaterial` (always renders dark because the app forces dark appearance) + 1px `hairline` stroke, for the action dock, top-bar pills, and toasts.
@@ -63,7 +63,7 @@ Springs, not curves. Respect Reduce Motion (`UIAccessibility.isReduceMotionEnabl
 | ThrowOut | `.interactiveSpring(response: 0.3, dampingFraction: 0.72)` | Card leaving the screen | `.rigid` toss / `.soft` keep |
 | StackAdvance | `.spring(response: 0.4, dampingFraction: 0.85)` | Next card promoting to the top | — |
 
-**The signature moment** is now a sequence: drag tilts the card from its base (`anchor: .bottom`), the KEEP/TOSS stamp inks in with drag distance, the matching screen edge glows, and on release the card flies off along the throw vector while the next card springs forward from the stack.
+**The signature moment** is now a sequence: drag tilts the card from its base (`anchor: .bottom`), the matching screen edge glows brighter with drag distance, and on release the card flies off along the throw vector while the next card springs forward from the stack. The edge glow is the only decision indicator — no stamps or badges on the photo itself.
 
 ## The swipe screen (canonical layout)
 

@@ -112,24 +112,3 @@ struct QuietButtonStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
 }
-
-// MARK: - Decision stamp (the grease-pencil KEEP / TOSS mark)
-
-struct DecisionStamp: View {
-    let isKeep: Bool
-
-    var body: some View {
-        Text(isKeep ? "KEEP" : "TOSS")
-            .font(.system(size: 22, weight: .black, design: .rounded))
-            .tracking(2)
-            .foregroundColor(isKeep ? Theme.keep : Theme.toss)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .overlay(
-                RoundedRectangle(cornerRadius: isKeep ? 999 : 8, style: .continuous)
-                    .stroke(isKeep ? Theme.keep : Theme.toss, lineWidth: 3.5)
-            )
-            .rotationEffect(.degrees(isKeep ? -8 : 6))
-            .shadow(color: (isKeep ? Theme.keep : Theme.toss).opacity(0.6), radius: 14)
-    }
-}
