@@ -2,9 +2,10 @@
 //  HomeView.swift
 //  Leftover
 //
-//  Phase 1 home dashboard: freed-space stat, streak flame, Today's Burst
-//  card, "Sort your leftovers" grid, and the recent-photos strip.
-//  Dumb view — all data and actions come from ContentView.
+//  Home dashboard: freed-space stat, streak flame, the "Clean up"
+//  grouped list (Memory Burst + all cleanup engines + Albums), and the
+//  recent-photos strip. Dumb view — data and actions come from
+//  ContentView.
 //
 
 import SwiftUI
@@ -16,15 +17,15 @@ struct HomeView: View {
     let streakCount: Int
     let streakPop: Bool
 
-    let burstCount: Int
-    let burstIsFallback: Bool
-    let burstDone: Bool
-    let burstBackdrop: UIImage?
+    let burstDetail: String
+    let burstDimmed: Bool
 
     let screenshotCount: Int
     let videoCount: Int
     let timeCapsuleCount: Int
     let duplicateDetail: String
+    let similarDetail: String
+    let blurryDetail: String
     let recentAssets: [PHAsset]
     let isLoading: Bool
 
@@ -33,29 +34,43 @@ struct HomeView: View {
     let onScreenshots: () -> Void
     let onTimeCapsule: () -> Void
     let onDuplicates: () -> Void
+    let onSimilar: () -> Void
+    let onBlurry: () -> Void
     let onLargeVideos: () -> Void
     let onAlbums: () -> Void
     let onRecent: (Int) -> Void
     let onComingSoon: (String) -> Void
 
     @State private var flameScale: CGFloat = 1.0
+    @State private var appeared = false
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                topBar
-                Text("Leftover")
-                    .font(Theme.display(40))
-                    .foregroundColor(Theme.ink)
-                burstCard
-                cleanupList
-                recentStrip
+                cascade(topBar, slot: 0)
+                cascade(
+                    Text("Leftover")
+                        .font(Theme.wordmark(34))
+                        .foregroundColor(Theme.ink),
+                    slot: 1
+                )
+                cascade(cleanupList, slot: 2)
+                cascade(recentStrip, slot: 3)
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
             .padding(.bottom, 32)
         }
         .background(Theme.stage)
+        .onAppear { appeared = true }
+    }
+
+    /// Sections fade-slide in with a small stagger.
+    private func cascade<V: View>(_ view: V, slot: Double) -> some View {
+        view
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : (UIAccessibility.isReduceMotionEnabled ? 0 : 14))
+            .animation(Theme.settle.delay(slot * 0.05), value: appeared)
     }
 
     private var topBar: some View {
@@ -71,7 +86,9 @@ struct HomeView: View {
 
             if freedBytes > 0 {
                 Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
-                    .font(.system(.subheadline, design: .monospaced).weight(.semibold))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .contentTransition(.numericText())
+                    .animation(Theme.settle, value: freedBytes)
                     .foregroundColor(Theme.dim)
                     .accessibilityLabel("Freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file)) so far")
             }
@@ -82,7 +99,7 @@ struct HomeView: View {
                         .foregroundColor(Theme.cream)
                         .scaleEffect(flameScale)
                     Text("\(streakCount)")
-                        .font(.system(.subheadline, design: .monospaced).weight(.bold))
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
                         .foregroundColor(Theme.ink)
                 }
                 .accessibilityElement(children: .combine)
@@ -98,101 +115,49 @@ struct HomeView: View {
         }
     }
 
-    private var burstCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("TODAY’S MEMORY BURST")
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                .tracking(2)
-                .foregroundColor(burstDone ? Theme.dim : Theme.cream.opacity(0.85))
-
-            if burstDone {
-                Label("Done for today.", systemImage: "checkmark.circle.fill")
-                    .font(Theme.title)
-                    .foregroundColor(Theme.keep)
-                Text("Come back tomorrow.")
-                    .font(.subheadline)
-                    .foregroundColor(Theme.dim)
-            } else if burstCount == 0 {
-                Text("Nothing today.")
-                    .font(Theme.title)
-                    .foregroundColor(Theme.ink)
-                Text("No memories this week. Enjoy the quiet.")
-                    .font(.subheadline)
-                    .foregroundColor(Theme.dim)
-            } else {
-                Text(burstIsFallback ? "Screenshot sweep" : "This week, years ago")
-                    .font(Theme.display(30))
-                    .foregroundColor(Theme.ink)
-                    .shadow(color: .black.opacity(0.5), radius: 6)
-                Text(burstIsFallback
-                     ? "No memories this week — \(burstCount) screenshots instead."
-                     : "\(burstCount) photo\(burstCount == 1 ? "" : "s") from your past.")
-                    .font(.subheadline)
-                    .foregroundColor(Theme.ink.opacity(0.85))
-                    .shadow(color: .black.opacity(0.5), radius: 4)
-
-                Button("Start today’s burst", action: onStartBurst)
-                    .buttonStyle(PrimaryButtonStyle())
-                    .padding(.top, 8)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                    .fill(Theme.surface)
-
-                // The card is a still from your own past, dimmed to a
-                // scrim — the theater screen before the show starts.
-                if !burstDone, burstCount > 0, let backdrop = burstBackdrop {
-                    Image(uiImage: backdrop)
-                        .resizable()
-                        .scaledToFill()
-                        .blur(radius: 14)
-                        .overlay(
-                            LinearGradient(colors: [.black.opacity(0.45), .black.opacity(0.72)],
-                                           startPoint: .top, endPoint: .bottom)
-                        )
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                    .strokeBorder(Theme.hairline, lineWidth: 1)
-            )
-        )
-    }
-
     // One continuous surface of rows — replaces the old 2×2 tile grid.
     private var cleanupList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Clean up")
-                .font(Theme.title)
-                .foregroundColor(Theme.ink)
-
             VStack(spacing: 0) {
+                SortRow(icon: "sparkles",
+                        title: "Memory Burst",
+                        detail: burstDetail,
+                        dimmed: burstDimmed,
+                        action: onStartBurst)
+                rowDivider
                 SortRow(icon: "camera.viewfinder",
-                        title: "Screenshot Sweep",
-                        detail: countLabel(screenshotCount, "screenshot"),
+                        title: "Screenshots",
+                        detail: countLabel(screenshotCount),
                         dimmed: screenshotCount == 0,
                         action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots to sweep.") })
                 rowDivider
                 SortRow(icon: "clock.arrow.circlepath",
                         title: "Time Capsule",
-                        detail: countLabel(timeCapsuleCount, "photo"),
+                        detail: countLabel(timeCapsuleCount),
                         dimmed: timeCapsuleCount == 0,
                         action: timeCapsuleCount > 0 ? onTimeCapsule : { onComingSoon("No old photos this week.") })
+                rowDivider
+                SortRow(icon: "square.stack.3d.down.right",
+                        title: "Similar Shots",
+                        detail: similarDetail,
+                        dimmed: similarDetail == "None",
+                        action: onSimilar)
                 rowDivider
                 SortRow(icon: "square.on.square",
                         title: "Duplicates",
                         detail: duplicateDetail,
-                        dimmed: false,
+                        dimmed: duplicateDetail == "None",
                         action: onDuplicates)
+                rowDivider
+                SortRow(icon: "camera.metering.unknown",
+                        title: "Blurry",
+                        detail: blurryDetail,
+                        dimmed: blurryDetail == "None",
+                        action: onBlurry)
                 rowDivider
                 SortRow(icon: "film",
                         title: "Large Videos",
-                        detail: countLabel(videoCount, "video"),
+                        detail: countLabel(videoCount),
                         dimmed: videoCount == 0,
                         action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") })
                 rowDivider
@@ -220,10 +185,11 @@ struct HomeView: View {
             .padding(.leading, 66)
     }
 
-    private func countLabel(_ count: Int, _ noun: String) -> String {
-        if isLoading && count == 0 { return "Counting…" }
+    // Bare values on the trailing edge, like the system Settings app.
+    private func countLabel(_ count: Int) -> String {
+        if isLoading && count == 0 { return "…" }
         if count == 0 { return "None" }
-        return "\(count.formatted()) \(noun)\(count == 1 ? "" : "s")"
+        return count.formatted()
     }
 
     private var recentStrip: some View {
@@ -273,8 +239,9 @@ struct SortRow: View {
                     )
 
                 Text(title)
-                    .font(.system(.body, design: .rounded).weight(.semibold))
+                    .font(.system(.body).weight(.semibold))
                     .foregroundColor(dimmed ? Theme.dim : Theme.ink)
+                    .lineLimit(1)
 
                 Spacer(minLength: 8)
 
@@ -282,6 +249,7 @@ struct SortRow: View {
                     Text(detail)
                         .font(.footnote.monospacedDigit())
                         .foregroundColor(Theme.dim)
+                        .lineLimit(1)
                 }
 
                 Image(systemName: "chevron.right")

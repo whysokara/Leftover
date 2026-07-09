@@ -33,12 +33,16 @@ enum Theme {
     static let toss     = Color(hex: 0xE56A55)   // toss stamp / delete
     static let hairline = Color(hex: 0x2E2921)   // borders
 
-    // Type
+    // Type — Apple-standard SF Pro semantic styles, sized like the
+    // system apps (Settings/Photos). Rounded and serif faces retired.
     static func display(_ size: CGFloat = 34) -> Font {
-        .system(size: size, weight: .black, design: .rounded)
+        .system(size: size, weight: .bold)
     }
-    static let title   = Font.system(size: 22, weight: .heavy, design: .rounded)
-    static let button  = Font.system(size: 16, weight: .bold, design: .rounded)
+    static func wordmark(_ size: CGFloat = 34) -> Font {
+        .system(size: size, weight: .bold)
+    }
+    static let title   = Font.title2.bold()
+    static let button  = Font.body.weight(.semibold)
 
     // Shape
     static let cardRadius: CGFloat = 28
@@ -91,6 +95,15 @@ struct TossButtonStyle: ButtonStyle {
             .clipShape(RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+/// Dock icons kick harder than ordinary buttons — paired with haptics.
+struct DockButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.78 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.5), value: configuration.isPressed)
     }
 }
 

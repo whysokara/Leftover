@@ -2,55 +2,85 @@
 //  DuplicatesView.swift
 //  Leftover
 //
-//  Phase 3c: group review. The best-guess keeper is preselected and
-//  the rest are marked to toss; tap any photo to flip it. One batch
-//  delete across all groups.
+//  GroupReviewView: group review for both Duplicates and Similar
+//  Shots. The best-guess keeper is preselected and the rest are marked
+//  to toss; tap any photo to flip it. One batch delete across groups.
 //
 
 import SwiftUI
 import Photos
 
-struct DuplicatesView: View {
-    @ObservedObject var finder: DuplicateFinder
+enum GroupReviewMode {
+    case duplicates
+    case similar
+
+    var title: String {
+        switch self {
+        case .duplicates: return "Duplicates"
+        case .similar:    return "Similar Shots"
+        }
+    }
+    var emptyIcon: String {
+        switch self {
+        case .duplicates: return "checkmark.seal"
+        case .similar:    return "sparkles"
+        }
+    }
+    var emptyTitle: String {
+        switch self {
+        case .duplicates: return "No duplicates."
+        case .similar:    return "No similar shots."
+        }
+    }
+    var emptySubtitle: String {
+        switch self {
+        case .duplicates: return "Every photo here is one of a kind."
+        case .similar:    return "No rapid-fire series found."
+        }
+    }
+}
+
+struct GroupReviewView: View {
+    @ObservedObject var scanner: LibraryScanner
+    let mode: GroupReviewMode
     let onClose: () -> Void
     let onToss: ([PHAsset], Int64) -> Void
 
     /// localIdentifiers currently marked to toss, across all groups.
+    /// Nothing is marked by default — tossing is always the user's call.
     @State private var marked: Set<String> = []
-    @State private var seededFromGroups = false
 
+    private var groups: [DuplicateGroup] {
+        switch mode {
+        case .duplicates: return scanner.duplicateGroups
+        case .similar:    return scanner.similarGroups
+        }
+    }
     private var markedAssets: [PHAsset] {
-        finder.groups.flatMap(\.assets).filter { marked.contains($0.localIdentifier) }
+        groups.flatMap(\.assets).filter { marked.contains($0.localIdentifier) }
     }
     private var markedBytes: Int64 {
-        markedAssets.reduce(0) { $0 + DuplicateFinder.fileSize($1) }
+        markedAssets.reduce(0) { $0 + LibraryScanner.fileSize($1) }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
 
-            if finder.isScanning {
+            if scanner.isScanning {
                 Spacer()
-                VStack(spacing: 14) {
-                    ProgressView(value: finder.total == 0 ? 0 : Double(finder.scanned) / Double(finder.total))
-                        .tint(Theme.cream)
-                        .frame(width: 200)
-                    Text("Scanned \(finder.scanned.formatted()) / \(finder.total.formatted())")
-                        .font(.footnote.monospacedDigit())
-                        .foregroundColor(Theme.dim)
-                }
+                ScanProgress(scanner: scanner)
                 Spacer()
-            } else if finder.groups.isEmpty {
+            } else if groups.isEmpty {
                 Spacer()
                 VStack(spacing: 12) {
-                    Image(systemName: "checkmark.seal")
+                    Image(systemName: mode.emptyIcon)
                         .font(.system(size: 36))
                         .foregroundColor(Theme.keep)
-                    Text("No duplicates.")
+                    Text(mode.emptyTitle)
                         .font(Theme.title)
                         .foregroundColor(Theme.ink)
-                    Text("Every photo here is one of a kind.")
+                    Text(mode.emptySubtitle)
                         .font(.subheadline)
                         .foregroundColor(Theme.dim)
                 }
@@ -58,7 +88,7 @@ struct DuplicatesView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 16) {
-                        ForEach(finder.groups) { group in
+                        ForEach(groups) { group in
                             groupCard(group)
                         }
                     }
@@ -82,31 +112,15 @@ struct DuplicatesView: View {
         }
         .animation(Theme.settle, value: marked.isEmpty)
         .onAppear {
-            if finder.hasScanned {
-                seedMarks()
-            } else {
-                finder.scan()
+            if !scanner.hasScanned {
+                scanner.scan()
             }
         }
-        .onChange(of: finder.hasScanned) { done in
-            if done { seedMarks() }
-        }
-        .onChange(of: finder.groups.count) { _ in
+        .onChange(of: groups.count) { _ in
             // After a delete, drop marks that no longer exist.
-            let alive = Set(finder.groups.flatMap(\.assets).map(\.localIdentifier))
+            let alive = Set(groups.flatMap(\.assets).map(\.localIdentifier))
             marked = marked.intersection(alive)
         }
-    }
-
-    /// Preselect everything except each group's keeper.
-    private func seedMarks() {
-        guard !seededFromGroups else { return }
-        seededFromGroups = true
-        marked = Set(finder.groups.flatMap { group in
-            group.assets
-                .map(\.localIdentifier)
-                .filter { $0 != group.keeperID }
-        })
     }
 
     private var header: some View {
@@ -120,14 +134,14 @@ struct DuplicatesView: View {
             }
             .accessibilityLabel("Back to home")
 
-            Text("Duplicates")
+            Text(mode.title)
                 .font(Theme.title)
                 .foregroundColor(Theme.ink)
 
             Spacer()
 
-            if !finder.isScanning && !finder.groups.isEmpty {
-                Text("\(finder.groups.count.formatted()) groups")
+            if !scanner.isScanning && !groups.isEmpty {
+                Text("\(groups.count.formatted()) groups")
                     .font(.footnote.monospacedDigit())
                     .foregroundColor(Theme.dim)
             }
@@ -143,23 +157,28 @@ struct DuplicatesView: View {
 
         return VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("\(group.assets.count) copies · \(ByteCountFormatter.string(fromByteCount: group.wastedBytes, countStyle: .file)) wasted")
+                Text("\(group.assets.count) \(mode == .duplicates ? "copies" : "shots") · \(ByteCountFormatter.string(fromByteCount: group.wastedBytes, countStyle: .file)) wasted")
                     .font(.footnote.monospacedDigit())
                     .foregroundColor(Theme.dim)
                 Spacer()
-                Button(tossCount == 0 ? "Kept" : "Keep all") {
+                // Nothing is marked by default; "Toss rest" marks every
+                // copy except the keeper in one tap.
+                Button(tossCount == 0 ? "Toss rest" : "Keep all") {
                     Haptics.impact(.soft)
-                    marked.subtract(groupIDs)
+                    if tossCount == 0 {
+                        marked.formUnion(groupIDs.filter { $0 != group.keeperID })
+                    } else {
+                        marked.subtract(groupIDs)
+                    }
                 }
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(tossCount == 0 ? Theme.dim : Theme.cream)
-                .disabled(tossCount == 0)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(tossCount == 0 ? Theme.toss : Theme.cream)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(group.assets, id: \.localIdentifier) { asset in
-                        duplicateThumb(asset, isKeeper: asset.localIdentifier == group.keeperID)
+                        groupThumb(asset, isKeeper: asset.localIdentifier == group.keeperID)
                     }
                 }
             }
@@ -175,7 +194,7 @@ struct DuplicatesView: View {
         )
     }
 
-    private func duplicateThumb(_ asset: PHAsset, isKeeper: Bool) -> some View {
+    private func groupThumb(_ asset: PHAsset, isKeeper: Bool) -> some View {
         let id = asset.localIdentifier
         let isMarked = marked.contains(id)
 
@@ -204,5 +223,21 @@ struct DuplicatesView: View {
         .buttonStyle(ScaleButtonStyle())
         .accessibilityLabel(isMarked ? "Marked to toss" : (isKeeper ? "Keeping, best quality" : "Keeping"))
         .accessibilityHint("Tap to \(isMarked ? "keep" : "toss") this copy")
+    }
+}
+
+/// Shared scan-progress block, also used while preparing a blurry session.
+struct ScanProgress: View {
+    @ObservedObject var scanner: LibraryScanner
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ProgressView(value: scanner.total == 0 ? 0 : Double(scanner.scanned) / Double(scanner.total))
+                .tint(Theme.cream)
+                .frame(width: 200)
+            Text("Scanned \(scanner.scanned.formatted()) / \(scanner.total.formatted())")
+                .font(.footnote.monospacedDigit())
+                .foregroundColor(Theme.dim)
+        }
     }
 }

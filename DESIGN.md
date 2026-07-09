@@ -31,16 +31,18 @@ Glass: `.ultraThinMaterial` (always renders dark because the app forces dark app
 
 ## Typography
 
-No bundled fonts. SF Pro Rounded at heavy weights carries the personality, SF Pro reads, SF Mono counts.
+No bundled fonts, no display faces. **SF Pro with Apple's semantic text styles, sized like the system apps** (July 2026: rounded and serif retired — the personality lives in color, motion, and copy, not letterforms).
 
-| Role | Face | Spec |
-|---|---|---|
-| Display (wordmark, celebrations) | SF Rounded | Black, 30–48pt |
-| Title | SF Rounded | Heavy, 22pt |
-| Body | SF Pro | Regular, 17pt |
-| Buttons | SF Rounded | Bold, 16pt |
-| Eyebrows ("TODAY'S MEMORY BURST") | SF Mono | Bold, 12pt, +2 tracking, uppercase |
-| Counters | SF Mono | Bold 15pt, tabular — digits never jitter |
+| Role | Spec |
+|---|---|
+| Wordmark / screen titles | SF Pro Bold, 34pt (`Theme.wordmark` — matches system large titles) |
+| Display (celebrations) | SF Pro Bold, 30pt (`Theme.display`) |
+| Section titles | `.title2.bold()` (`Theme.title`) |
+| Row titles / body | `.body` semibold / regular |
+| Buttons | `.body.weight(.semibold)` (`Theme.button`) |
+| Row details, counters | `.footnote` / `.subheadline` + `.monospacedDigit()` — bare values, one line, like Settings |
+
+Counters animate with `.contentTransition(.numericText())` — digits roll, never jitter.
 
 **Dynamic Type:** full range including accessibility sizes. Never cap with `.dynamicTypeSize(...)`.
 
@@ -64,6 +66,8 @@ Springs, not curves. Respect Reduce Motion (`UIAccessibility.isReduceMotionEnabl
 | StackAdvance | `.spring(response: 0.4, dampingFraction: 0.85)` | Next card promoting to the top | — |
 
 **The signature moment** is now a sequence: drag tilts the card from its base (`anchor: .bottom`), the matching screen edge glows brighter with drag distance, and on release the card flies off along the throw vector while the next card springs forward from the stack. The edge glow is the only decision indicator — no stamps or badges on the photo itself.
+
+**Supporting motion:** sessions deal their cards up from the bottom with a 70ms stagger; undo flies the card back in from the side it left; screens push in from the trailing edge (crossfade under Reduce Motion); home sections cascade in with a 50ms stagger; dock icons kick to 0.78 scale on press; the splash shows on every cold launch — auto-dissolving after 1.4s for returning users — over a system launch screen in `stage` (StageColor).
 
 ## The swipe screen (canonical layout)
 

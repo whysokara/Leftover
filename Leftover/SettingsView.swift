@@ -64,10 +64,23 @@ struct SettingsView: View {
                     Text("Earn a freeze every 7-day streak. If you miss a day, a freeze is used automatically to keep your streak alive.")
                 }
 
-                Section("Privacy") {
+                Section {
                     trustRow(icon: "iphone", text: "Everything stays on this iPhone")
                     trustRow(icon: "icloud.slash", text: "Your photos are never uploaded")
                     trustRow(icon: "checkmark.shield", text: "Deletions are always yours to confirm")
+                    Button {
+                        if let url = URL(string: "photos-redirect://") {
+                            UIApplication.shared.open(url)
+                        }
+                    } label: {
+                        trustRow(icon: "clock.arrow.circlepath",
+                                 text: "Tossed photos stay in Recently Deleted for 30 days")
+                    }
+                    .foregroundColor(Theme.ink)
+                } header: {
+                    Text("Privacy")
+                } footer: {
+                    Text("Restore anything within 30 days from Photos → Albums → Recently Deleted. Tap the row to open Photos.")
                 }
 
                 Section("About") {

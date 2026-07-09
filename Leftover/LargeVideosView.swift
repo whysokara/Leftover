@@ -150,7 +150,7 @@ struct LargeVideosView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(dateLabel(item.asset.creationDate))
-                        .font(.system(.body, design: .rounded).weight(.semibold))
+                        .font(.system(.body).weight(.semibold))
                         .foregroundColor(Theme.ink)
                     Text("Tap thumbnail to play")
                         .font(.caption)

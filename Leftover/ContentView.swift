@@ -4,7 +4,7 @@ import PhotosUI
 import UIKit
 
 enum SessionSource {
-    case album, burst, screenshots, timeCapsule
+    case album, burst, screenshots, timeCapsule, blurry
 }
 
 /// Where a review session was launched from — exits return here.
@@ -37,7 +37,10 @@ struct ContentView: View {
     @State private var pulse = false
     @State private var heartRotation: Double = 0
     @State private var heartOpacity: Double = 1.0
-    @State private var showSplashScreen = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+    // The splash shows on every cold launch: first launch keeps the
+    // Start button, returning launches auto-dissolve into home.
+    @State private var showSplashScreen = true
+    private let isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
 
     @StateObject private var stats = Stats()
     @StateObject private var notifications = NotificationManager()
@@ -50,12 +53,13 @@ struct ContentView: View {
     @State private var screenshotAssets: [PHAsset] = []
     @State private var timeCapsuleAssets: [PHAsset] = []
     @State private var burstAssets: [PHAsset] = []
-    @State private var burstIsFallback = false
     @State private var videoCount = 0
     @State private var recentAssets: [PHAsset] = []
-    @StateObject private var duplicateFinder = DuplicateFinder()
+    @StateObject private var libraryScanner = LibraryScanner()
     @State private var showLargeVideos = false
     @State private var showDuplicates = false
+    @State private var showSimilar = false
+    @State private var showBlurryScan = false
     @State private var largeVideos: [VideoItem] = []
     @State private var largeVideosShowingAll = false
     @Environment(\.scenePhase) private var scenePhase
@@ -65,7 +69,8 @@ struct ContentView: View {
     @State private var cardOffset: CGSize = .zero
     @State private var isThrowingCard = false
     @State private var showExitAlert = false
-    @State private var burstBackdrop: UIImage? = nil
+    @State private var dealtIn = true
+    @State private var burstTeaser: String? = nil
 
     var body: some View {
         ZStack {
@@ -75,17 +80,22 @@ struct ContentView: View {
                 splashScreenView
             } else if showAlbumPicker {
                 albumPickerView
+                    .transition(pushTransition)
             } else if isLoadingPhotos {
                 ProgressView("Opening \(selectedAlbum?.localizedTitle ?? "All Photos")…")
                     .foregroundColor(Theme.dim)
             } else if sessionActive && currentIndex < photoAssets.count {
                 swipeCard
+                    .transition(pushTransition)
             } else if sessionActive && showDeleteButton {
                 deleteConfirmation
+                    .transition(settleTransition)
             } else if sessionActive {
                 emptyAlbumView
+                    .transition(settleTransition)
             } else if showBurstComplete {
                 burstCompleteView
+                    .transition(settleTransition)
             } else if showLargeVideos {
                 LargeVideosView(
                     videos: largeVideos,
@@ -101,20 +111,41 @@ struct ContentView: View {
                         }
                     }
                 )
+                .transition(pushTransition)
             } else if showDuplicates {
-                DuplicatesView(
-                    finder: duplicateFinder,
+                GroupReviewView(
+                    scanner: libraryScanner,
+                    mode: .duplicates,
                     onClose: {
                         withAnimation(Theme.settle) { showDuplicates = false }
                     },
                     onToss: { assets, freed in
                         performBatchDelete(assets, freed: freed) {
-                            duplicateFinder.removeAssets(withIdentifiers: Set(assets.map(\.localIdentifier)))
+                            libraryScanner.removeAssets(withIdentifiers: Set(assets.map(\.localIdentifier)))
                         }
                     }
                 )
+                .transition(pushTransition)
+            } else if showSimilar {
+                GroupReviewView(
+                    scanner: libraryScanner,
+                    mode: .similar,
+                    onClose: {
+                        withAnimation(Theme.settle) { showSimilar = false }
+                    },
+                    onToss: { assets, freed in
+                        performBatchDelete(assets, freed: freed) {
+                            libraryScanner.removeAssets(withIdentifiers: Set(assets.map(\.localIdentifier)))
+                        }
+                    }
+                )
+                .transition(pushTransition)
+            } else if showBlurryScan {
+                blurryScanScreen
+                    .transition(pushTransition)
             } else {
                 homeView
+                    .transition(.opacity)
             }
 
             if isDeleting {
@@ -133,7 +164,7 @@ struct ContentView: View {
                             .fill(Theme.cream)
                             .frame(width: 8, height: 8)
                         Text(snackbarMessage)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(Theme.ink)
                     }
                     .padding(.horizontal, 20)
@@ -145,6 +176,12 @@ struct ContentView: View {
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+
+            if let moment = momentContent {
+                momentView(moment)
+                    .transition(.opacity)
+                    .zIndex(2)
+            }
         }
         .preferredColorScheme(.dark)
         .onChange(of: currentIndex) { newIndex in
@@ -154,22 +191,148 @@ struct ContentView: View {
         }
         .onChange(of: scenePhase) { phase in
             // Reminder only fires if today's burst isn't done — refresh on
-            // every backgrounding so completing a burst cancels the nudge.
+            // every backgrounding so completing a burst cancels the nudge,
+            // and feed it the freshest copy hooks.
             if phase == .background {
+                notifications.burstTeaser = burstTeaser
+                notifications.streakToProtect =
+                    (!stats.isBurstDoneToday && stats.streakCount >= 3) ? stats.streakCount : 0
                 notifications.reschedule(burstDoneToday: stats.isBurstDoneToday)
             }
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(notifications: notifications, stats: stats)
         }
+        .onChange(of: libraryScanner.hasScanned) { done in
+            // A scan launched from the Blurry row flows straight into
+            // the review session once it finishes.
+            guard done, showBlurryScan else { return }
+            showBlurryScan = false
+            startBlurrySession()
+        }
     }
+
+    // MARK: - Screen transitions (crossfade under Reduce Motion)
+
+    private var pushTransition: AnyTransition {
+        UIAccessibility.isReduceMotionEnabled
+            ? .opacity
+            : .move(edge: .trailing).combined(with: .opacity)
+    }
+
+    private var settleTransition: AnyTransition {
+        UIAccessibility.isReduceMotionEnabled
+            ? .opacity
+            : .opacity.combined(with: .scale(scale: 0.97))
+    }
+
+    // MARK: - Milestone & weekly recap moments
+
+    private var momentContent: (title: String, subtitle: String, isMilestone: Bool)? {
+        guard !sessionActive, !isDeleting, !showSplashScreen else { return nil }
+        if let milestone = stats.pendingMilestone {
+            return ("\(milestone).", "Keep going.", true)
+        }
+        if let recap = stats.pendingRecap {
+            return ("Last week.", recap, false)
+        }
+        return nil
+    }
+
+    private func momentView(_ moment: (title: String, subtitle: String, isMilestone: Bool)) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: moment.isMilestone ? "trophy" : "calendar")
+                .font(.system(size: 44))
+                .foregroundColor(Theme.cream)
+                .shadow(color: Theme.cream.opacity(0.4), radius: 22)
+
+            Text(moment.title)
+                .font(Theme.display(30))
+                .foregroundColor(Theme.ink)
+                .multilineTextAlignment(.center)
+
+            Text(moment.subtitle)
+                .font(.subheadline)
+                .foregroundColor(Theme.dim)
+                .multilineTextAlignment(.center)
+
+            Button("Done") {
+                withAnimation(Theme.settle) {
+                    if moment.isMilestone {
+                        stats.clearMilestone()
+                    } else {
+                        stats.clearRecap()
+                    }
+                }
+            }
+            .buttonStyle(PrimaryButtonStyle())
+            .padding(.horizontal, 64)
+            .padding(.top, 8)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.stage.ignoresSafeArea())
+        .onAppear { Haptics.success() }
+    }
+
+    var blurryScanScreen: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                Button {
+                    withAnimation(Theme.settle) { showBlurryScan = false }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(Theme.ink)
+                        .frame(width: 40, height: 40)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .accessibilityLabel("Back to home")
+
+                Text("Blurry")
+                    .font(Theme.title)
+                    .foregroundColor(Theme.ink)
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
+
+            Spacer()
+            ScanProgress(scanner: libraryScanner)
+            Spacer()
+        }
+    }
+
+    func startBlurrySession() {
+        if libraryScanner.blurryAssets.isEmpty {
+            showToast("Nothing blurry. Sharp shooter.")
+        } else {
+            startSession(.blurry, assets: libraryScanner.blurryAssets)
+        }
+    }
+
+    func openBlurry() {
+        if libraryScanner.hasScanned {
+            startBlurrySession()
+        } else {
+            withAnimation(Theme.settle) { showBlurryScan = true }
+            libraryScanner.scan()
+        }
+    }
+
+    private func scanDetail(count: Int) -> String {
+        guard libraryScanner.hasScanned else { return "Scan" }
+        if count == 0 { return "None" }
+        return count.formatted()
+    }
+
     var splashScreenView: some View {
         VStack {
             Spacer()
 
             VStack(spacing: 8) {
                 Text("Leftover")
-                    .font(Theme.display(48))
+                    .font(Theme.wordmark(46))
                     .foregroundColor(Theme.cream)
                     .scaleEffect(pulse ? 1.0 : 0.96)
                     .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: pulse)
@@ -190,39 +353,55 @@ struct ContentView: View {
             }
             .padding(.bottom, 28)
 
-            Button("Start") {
-                stats.hasLaunchedBefore = true
-                withAnimation(Theme.settle) {
-                    showSplashScreen = false
+            if isFirstLaunch {
+                Button("Start") {
+                    stats.hasLaunchedBefore = true
+                    withAnimation(Theme.settle) {
+                        showSplashScreen = false
+                    }
                 }
+                .buttonStyle(PrimaryButtonStyle())
+                .padding(.horizontal, 64)
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding(.horizontal, 64)
 
             Spacer()
 
-            VStack(spacing: 4) {
-                HStack(spacing: 4) {
-                    Text("Built by")
+            if isFirstLaunch {
+                VStack(spacing: 4) {
+                    HStack(spacing: 4) {
+                        Text("Built by")
+                            .font(.footnote)
+                            .foregroundColor(Theme.dim)
+
+                        Link("Kara", destination: URL(string: "https://x.com/whysokara")!)
+                            .font(.footnote)
+                            .foregroundColor(Theme.cream)
+                            .underline()
+                    }
+
+                    Text("No signup. We don’t collect any data.")
                         .font(.footnote)
                         .foregroundColor(Theme.dim)
-
-                    Link("Kara", destination: URL(string: "https://x.com/whysokara")!)
-                        .font(.footnote)
-                        .foregroundColor(Theme.cream)
-                        .underline()
                 }
-
-                Text("No signup. We don’t collect any data.")
-                    .font(.footnote)
-                    .foregroundColor(Theme.dim)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("Built by Kara. No signup required. We don’t collect any data.")
+                .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 60 : 32)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Built by Kara. No signup required. We don’t collect any data.")
-            .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 60 : 32)
         }
         .multilineTextAlignment(.center)
         .padding()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Returning users can skip the brand moment.
+            guard !isFirstLaunch else { return }
+            withAnimation(Theme.settle) { showSplashScreen = false }
+        }
+        .onAppear {
+            guard !isFirstLaunch else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                withAnimation(Theme.settle) { showSplashScreen = false }
+            }
+        }
         .opacity(showSplashScreen ? 1 : 0)
         .scaleEffect(showSplashScreen ? 1 : 0.96)
         .animation(.easeInOut(duration: 0.3), value: showSplashScreen)
@@ -238,16 +417,16 @@ struct ContentView: View {
                     freedBytes: stats.lifetimeFreedBytes,
                     streakCount: stats.streakCount,
                     streakPop: stats.streakJustIncremented,
-                    burstCount: burstAssets.count,
-                    burstIsFallback: burstIsFallback,
-                    burstDone: stats.isBurstDoneToday,
-                    burstBackdrop: burstBackdrop,
+                    burstDetail: stats.isBurstDoneToday
+                        ? "Done today"
+                        : (burstAssets.isEmpty ? "None" : burstAssets.count.formatted()),
+                    burstDimmed: stats.isBurstDoneToday || burstAssets.isEmpty,
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
                     timeCapsuleCount: timeCapsuleAssets.count,
-                    duplicateDetail: duplicateFinder.hasScanned
-                        ? "\(duplicateFinder.groups.count.formatted()) group\(duplicateFinder.groups.count == 1 ? "" : "s")"
-                        : "Scan",
+                    duplicateDetail: scanDetail(count: libraryScanner.duplicateGroups.count),
+                    similarDetail: scanDetail(count: libraryScanner.similarGroups.count),
+                    blurryDetail: scanDetail(count: libraryScanner.blurryAssets.count),
                     recentAssets: recentAssets,
                     isLoading: isLoadingHome,
                     onSettings: { showSettings = true },
@@ -257,6 +436,10 @@ struct ContentView: View {
                     onDuplicates: {
                         withAnimation(Theme.settle) { showDuplicates = true }
                     },
+                    onSimilar: {
+                        withAnimation(Theme.settle) { showSimilar = true }
+                    },
+                    onBlurry: { openBlurry() },
                     onLargeVideos: {
                         withAnimation(Theme.settle) { showLargeVideos = true }
                     },
@@ -283,6 +466,10 @@ struct ContentView: View {
                             self.showDuplicates = true
                         } else if args.contains("-LeftoverOpenLargeVideos") {
                             self.showLargeVideos = true
+                        } else if args.contains("-LeftoverOpenSimilar") {
+                            self.showSimilar = true
+                        } else if args.contains("-LeftoverOpenBlurry") {
+                            self.openBlurry()
                         }
                         #endif
                     }
@@ -300,6 +487,13 @@ struct ContentView: View {
                 .foregroundColor(Theme.cream)
                 .scaleEffect(celebrationScale)
                 .shadow(color: Theme.cream.opacity(0.45), radius: 24)
+                .background(
+                    // The spotlight blooms open behind the celebration.
+                    RadialGradient(colors: [Theme.cream.opacity(0.16), .clear],
+                                   center: .center, startRadius: 8, endRadius: 250)
+                        .frame(width: 500, height: 500)
+                        .scaleEffect(celebrationScale)
+                )
                 .onAppear {
                     celebrationScale = 0.4
                     withAnimation(Theme.pop) { celebrationScale = 1.0 }
@@ -321,7 +515,7 @@ struct ContentView: View {
                     Image(systemName: "flame.fill")
                         .foregroundColor(Theme.cream)
                     Text("\(stats.streakCount)-day streak")
-                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                        .font(.system(.subheadline).weight(.bold))
                         .foregroundColor(Theme.ink)
                 }
             }
@@ -367,7 +561,7 @@ struct ContentView: View {
                     } label: {
                         Label("Home", systemImage: "chevron.backward")
                             .labelStyle(.titleAndIcon)
-                            .font(.system(size: 15, weight: .semibold, design: .rounded))
+                            .font(.system(size: 15, weight: .semibold))
                             .foregroundColor(Theme.ink)
                     }
                     .accessibilityLabel("Back to home")
@@ -550,6 +744,9 @@ struct ContentView: View {
             }
             Button("Cancel", role: .cancel) {}
         }
+        .onAppear {
+            DispatchQueue.main.async { dealtIn = true }
+        }
     }
 
     private func dragProgress(_ distance: CGFloat) -> Double {
@@ -592,7 +789,7 @@ struct ContentView: View {
             Button("Keep all") {
                 keepAll()
             }
-            .font(.system(size: 15, weight: .semibold, design: .rounded))
+            .font(.system(size: 15, weight: .semibold))
             .foregroundColor(Theme.ink)
             .padding(.horizontal, 14)
             .frame(height: 40)
@@ -609,11 +806,13 @@ struct ContentView: View {
         HStack {
             HStack(spacing: 5) {
                 Image(systemName: "trash")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                 Text("\(toBeDeleted.count)")
-                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .contentTransition(.numericText())
             }
             .foregroundColor(Theme.toss)
+            .animation(Theme.settle, value: toBeDeleted.count)
             .accessibilityElement()
             .accessibilityLabel("\(toBeDeleted.count) marked to toss")
 
@@ -621,11 +820,13 @@ struct ContentView: View {
 
             HStack(spacing: 5) {
                 Text("\(max(currentIndex - toBeDeleted.count, 0))")
-                    .font(.system(size: 15, weight: .bold, design: .monospaced))
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .contentTransition(.numericText())
                 Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
             }
             .foregroundColor(Theme.keep)
+            .animation(Theme.settle, value: currentIndex - toBeDeleted.count)
             .accessibilityElement()
             .accessibilityLabel("\(max(currentIndex - toBeDeleted.count, 0)) kept")
         }
@@ -707,6 +908,11 @@ struct ContentView: View {
             .onTapGesture(count: 2) {
                 if isTop { favoriteCurrent() }
             }
+            // Deal-in: cards rise from the bottom with a stagger when a
+            // session starts.
+            .offset(y: dealtIn ? 0 : (UIAccessibility.isReduceMotionEnabled ? 0 : 560))
+            .opacity(dealtIn ? 1 : 0)
+            .animation(Theme.settle.delay(Double(depth) * 0.07), value: dealtIn)
             .id(asset.localIdentifier)
             .accessibilityElement()
             .accessibilityLabel(isTop
@@ -739,13 +945,15 @@ struct ContentView: View {
             deleteMarkedPhotos()
         } label: {
             Text("Toss \(toBeDeleted.count)")
-                .font(.system(size: 15, weight: .bold, design: .rounded))
+                .font(.subheadline.weight(.semibold))
+                .contentTransition(.numericText())
                 .foregroundColor(.white)
                 .padding(.horizontal, 24)
                 .padding(.vertical, 10)
                 .background(Theme.toss, in: Capsule())
         }
         .buttonStyle(ScaleButtonStyle())
+        .animation(Theme.settle, value: toBeDeleted.count)
         .transition(.scale.combined(with: .opacity))
         .accessibilityLabel("Toss \(toBeDeleted.count) marked photos now")
     }
@@ -784,7 +992,7 @@ struct ContentView: View {
                 .foregroundColor(tint)
                 .frame(width: 60, height: 52)
         }
-        .buttonStyle(ScaleButtonStyle())
+        .buttonStyle(DockButtonStyle())
         .accessibilityLabel(label)
     }
 
@@ -825,18 +1033,32 @@ struct ContentView: View {
     }
 
     func undoLast() {
-        guard currentIndex > 0 else { return }
+        guard currentIndex > 0, !isThrowingCard else { return }
         Haptics.impact(.light)
-        withAnimation(Theme.stackAdvance) {
+        let asset = photoAssets[currentIndex - 1]
+        let wasTossed = toBeDeleted.contains(asset)
+
+        func restore() {
             currentIndex -= 1
-            let asset = photoAssets[currentIndex]
-            if toBeDeleted.contains(asset) {
+            if wasTossed {
                 totalSize -= assetFileSize(asset)
                 toBeDeleted.removeAll { $0 == asset }
             }
             currentAsset = asset
         }
-        cardOffset = .zero
+
+        if UIAccessibility.isReduceMotionEnabled {
+            withAnimation(Theme.stackAdvance) { restore() }
+            cardOffset = .zero
+            return
+        }
+
+        // The card flies back in from the side it left.
+        cardOffset = CGSize(width: wasTossed ? -640 : 640, height: -30)
+        withAnimation(Theme.stackAdvance) { restore() }
+        DispatchQueue.main.async {
+            withAnimation(Theme.settle) { cardOffset = .zero }
+        }
     }
 
     func keepAll() {
@@ -908,6 +1130,7 @@ struct ContentView: View {
         case .burst:       return "Burst done."
         case .screenshots: return "Screenshots clear."
         case .timeCapsule: return "Capsule clear."
+        case .blurry:      return "Blur cleared."
         }
     }
 
@@ -1019,6 +1242,7 @@ struct ContentView: View {
     }
 
     func startSession(_ source: SessionSource, assets: [PHAsset], startAt: Int = 0) {
+        dealtIn = false
         withAnimation(Theme.settle) {
             sessionSource = source
             sessionOrigin = .home
@@ -1080,17 +1304,22 @@ struct ContentView: View {
                         showToast("\(count) tossed")
                     }
 
+                    let tossedIDs = Set(toBeDeleted.map(\.localIdentifier))
                     self.toBeDeleted.removeAll()
                     self.totalSize = 0
                     self.currentIndex = 0
                     self.showDeleteButton = false
+                    // Keep scanner products honest after any swipe delete.
+                    if libraryScanner.hasScanned {
+                        libraryScanner.removeAssets(withIdentifiers: tossedIDs)
+                    }
                     switch sessionSource {
                     case .album:
                         self.loadPhotos(from: self.selectedAlbum)
                     case .burst:
                         sessionActive = false
                         withAnimation(Theme.settle) { showBurstComplete = true }
-                    case .screenshots, .timeCapsule:
+                    case .screenshots, .timeCapsule, .blurry:
                         withAnimation(Theme.settle) { returnHome() }
                         loadHomeData()
                     }
@@ -1189,15 +1418,18 @@ struct ContentView: View {
 
             DispatchQueue.main.async {
                 let start = min(startAt, max(result.count - 1, 0))
-                self.sessionSource = .album
-                self.sessionOrigin = origin
-                self.sessionActive = true
-                self.photoAssets = result
-                self.currentIndex = start
-                self.toBeDeleted = []
-                self.totalSize = 0
-                self.currentAsset = result.indices.contains(start) ? result[start] : nil
-                self.isLoadingPhotos = false
+                self.dealtIn = false
+                withAnimation(Theme.settle) {
+                    self.sessionSource = .album
+                    self.sessionOrigin = origin
+                    self.sessionActive = true
+                    self.photoAssets = result
+                    self.currentIndex = start
+                    self.toBeDeleted = []
+                    self.totalSize = 0
+                    self.currentAsset = result.indices.contains(start) ? result[start] : nil
+                    self.isLoadingPhotos = false
+                }
             }
         }
     }
@@ -1226,7 +1458,7 @@ struct ContentView: View {
             var videoItems: [VideoItem] = []
             PHAsset.fetchAssets(with: .video, options: nil)
                 .enumerateObjects { asset, _, _ in
-                    videoItems.append(VideoItem(asset: asset, size: DuplicateFinder.fileSize(asset)))
+                    videoItems.append(VideoItem(asset: asset, size: LibraryScanner.fileSize(asset)))
                 }
             videoItems.sort { $0.size > $1.size }
             let bigOnes = videoItems.filter { $0.size >= 50_000_000 }
@@ -1249,18 +1481,6 @@ struct ContentView: View {
                     .enumerateObjects { asset, _, _ in capsule.append(asset) }
             }
 
-            // Burst: up to 10 memories; if the week is empty, sweep the
-            // newest 10 screenshots instead so the habit never dead-ends.
-            let burst: [PHAsset]
-            let fallback: Bool
-            if capsule.isEmpty {
-                burst = Array(screenshots.prefix(10))
-                fallback = true
-            } else {
-                burst = Array(capsule.prefix(10))
-                fallback = false
-            }
-
             let recentOptions = PHFetchOptions()
             recentOptions.sortDescriptors = newestFirst
             recentOptions.fetchLimit = 9
@@ -1268,30 +1488,45 @@ struct ContentView: View {
             PHAsset.fetchAssets(with: .image, options: recentOptions)
                 .enumerateObjects { asset, _, _ in recent.append(asset) }
 
-            // Backdrop for the photo-backed burst card (blurred under a scrim).
-            var backdrop: UIImage?
-            if let first = burst.first {
-                let req = PHImageRequestOptions()
-                req.deliveryMode = .highQualityFormat
-                req.isSynchronous = true
-                req.isNetworkAccessAllowed = true
-                PHImageManager.default().requestImage(for: first,
-                                                      targetSize: CGSize(width: 600, height: 600),
-                                                      contentMode: .aspectFill,
-                                                      options: req) { result, _ in
-                    backdrop = result
+            // Burst: always has something. This week in prior years →
+            // a random old month → screenshots → the newest photos.
+            // The daily habit never dead-ends on "None".
+            var burst = Array(capsule.prefix(10))
+            if burst.isEmpty {
+                let monthsBack = Int.random(in: 12...36)
+                if let past = calendar.date(byAdding: .month, value: -monthsBack, to: now),
+                   let month = calendar.dateInterval(of: .month, for: past) {
+                    let options = PHFetchOptions()
+                    options.predicate = NSPredicate(format: "creationDate >= %@ AND creationDate < %@",
+                                                    month.start as NSDate, month.end as NSDate)
+                    options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+                    options.fetchLimit = 10
+                    PHAsset.fetchAssets(with: .image, options: options)
+                        .enumerateObjects { asset, _, _ in burst.append(asset) }
                 }
+            }
+            if burst.isEmpty { burst = Array(screenshots.prefix(10)) }
+            if burst.isEmpty { burst = recent }
+
+            // Reminder teaser ("3 photos from July 2019") — only when the
+            // burst is genuinely from the past.
+            var teaser: String?
+            if let date = burst.first?.creationDate,
+               let horizon = calendar.date(byAdding: .month, value: -6, to: now),
+               date < horizon {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "MMMM yyyy"
+                teaser = "\(burst.count) photo\(burst.count == 1 ? "" : "s") from \(formatter.string(from: date))"
             }
 
             DispatchQueue.main.async {
+                self.burstTeaser = teaser
                 self.screenshotAssets = screenshots
                 self.videoCount = videos
                 self.largeVideos = bigOnes.isEmpty ? videoItems : bigOnes
                 self.largeVideosShowingAll = bigOnes.isEmpty
                 self.timeCapsuleAssets = capsule
                 self.burstAssets = burst
-                self.burstIsFallback = fallback
-                self.burstBackdrop = backdrop
                 self.recentAssets = recent
                 self.isLoadingHome = false
             }
@@ -1408,7 +1643,7 @@ struct AlbumGridItem: View {
                 }
 
                 Text(title)
-                    .font(.system(.headline, design: .rounded))
+                    .font(.system(.headline))
                     .foregroundColor(Theme.ink)
 
                 Text("\(count) Photos")

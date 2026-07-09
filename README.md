@@ -35,6 +35,8 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 - ✅ **Daily reminder** — one gentle nudge, only if you haven't played today
 - ✅ **Screenshot Sweep** and **Time Capsule** cleanup flows
 - ✅ **Duplicates finder** — perceptual-hash groups with the best copy preselected to keep, cached so rescans are instant
+- ✅ **Similar Shots** — rapid-fire series (same moment, seconds apart) grouped with the sharpest shot preselected to keep
+- ✅ **Blurry sweep** — sharpness scoring finds the blur, then you judge each one in the swipe deck
 - ✅ **Large Videos** — biggest space hogs in a list, tap to preview, batch toss
 
 ### The vibe

@@ -23,6 +23,13 @@ final class Stats: ObservableObject {
     @Published var freezeJustEarned = false
     @Published var streakJustIncremented = false
 
+    /// One-shot celebration moments, consumed by ContentView.
+    @Published var pendingMilestone: String? = nil
+    @Published var pendingRecap: String? = nil
+
+    private var weekTossed: Int
+    private var weekFreed: Int64
+
     var hasLaunchedBefore: Bool {
         get { defaults.bool(forKey: "hasLaunchedBefore") }
         set { defaults.set(newValue, forKey: "hasLaunchedBefore") }
@@ -43,6 +50,10 @@ final class Stats: ObservableObject {
         freezes = defaults.integer(forKey: "freezes")
         lastCompletedDay = defaults.string(forKey: "lastCompletedDay") ?? ""
         burstCompletedDay = defaults.string(forKey: "burstCompletedDay") ?? ""
+        weekTossed = defaults.integer(forKey: "weekTossed")
+        weekFreed = Int64(defaults.integer(forKey: "weekFreed"))
+        pendingRecap = defaults.string(forKey: "pendingRecap")
+        rolloverWeekIfNeeded()
     }
 
     var isBurstDoneToday: Bool {
@@ -50,8 +61,12 @@ final class Stats: ObservableObject {
     }
 
     func recordDelete(count: Int, freed: Int64) {
+        rolloverWeekIfNeeded()
         lifetimeTossedCount += count
         lifetimeFreedBytes += max(0, freed)
+        weekTossed += count
+        weekFreed += max(0, freed)
+        checkMilestones()
         persist()
     }
 
@@ -91,7 +106,67 @@ final class Stats: ObservableObject {
             freezeJustEarned = true
         }
         lastCompletedDay = today
+        checkMilestones()
         persist()
+    }
+
+    // MARK: - Milestones & weekly recap
+
+    /// Fires each threshold exactly once, biggest first. The pending one
+    /// is shown by ContentView at the next natural pause.
+    private func checkMilestones() {
+        let gb: Int64 = 1 << 30
+        let candidates: [(String, Bool)] = [
+            ("10 GB freed", lifetimeFreedBytes >= 10 * gb),
+            ("5 GB freed", lifetimeFreedBytes >= 5 * gb),
+            ("1 GB freed", lifetimeFreedBytes >= gb),
+            ("10,000 photos tossed", lifetimeTossedCount >= 10_000),
+            ("1,000 photos tossed", lifetimeTossedCount >= 1_000),
+            ("100 photos tossed", lifetimeTossedCount >= 100),
+            ("30-day streak", streakCount >= 30),
+            ("7-day streak", streakCount >= 7),
+        ]
+        var shown = Set(defaults.stringArray(forKey: "milestonesShown") ?? [])
+        for (name, hit) in candidates where hit && !shown.contains(name) {
+            shown.insert(name)
+            if pendingMilestone == nil { pendingMilestone = name }
+        }
+        defaults.set(Array(shown), forKey: "milestonesShown")
+    }
+
+    func clearMilestone() {
+        pendingMilestone = nil
+    }
+
+    /// On the first activity of a new ISO week, bank last week's numbers
+    /// as a recap moment.
+    private func rolloverWeekIfNeeded() {
+        let key = Self.weekKey(for: Date())
+        let stored = defaults.string(forKey: "weekKey")
+        guard stored != key else { return }
+        if stored != nil, weekTossed > 0 {
+            let freedText = weekFreed > 0
+                ? " · \(ByteCountFormatter.string(fromByteCount: weekFreed, countStyle: .file)) freed"
+                : ""
+            pendingRecap = "\(weekTossed) tossed\(freedText)"
+            defaults.set(pendingRecap, forKey: "pendingRecap")
+        }
+        weekTossed = 0
+        weekFreed = 0
+        defaults.set(key, forKey: "weekKey")
+        persist()
+    }
+
+    func clearRecap() {
+        pendingRecap = nil
+        defaults.removeObject(forKey: "pendingRecap")
+    }
+
+    private static func weekKey(for date: Date) -> String {
+        let calendar = Calendar(identifier: .iso8601)
+        let week = calendar.component(.weekOfYear, from: date)
+        let year = calendar.component(.yearForWeekOfYear, from: date)
+        return "\(year)-W\(week)"
     }
 
     private func daysBetween(_ from: String, and to: String) -> Int? {
@@ -108,6 +183,8 @@ final class Stats: ObservableObject {
         defaults.set(freezes, forKey: "freezes")
         defaults.set(lastCompletedDay, forKey: "lastCompletedDay")
         defaults.set(burstCompletedDay, forKey: "burstCompletedDay")
+        defaults.set(weekTossed, forKey: "weekTossed")
+        defaults.set(Int(weekFreed), forKey: "weekFreed")
 
         // Mirror for the widget (no-op until the App Group exists).
         shared?.set(streakCount, forKey: "streakCount")
