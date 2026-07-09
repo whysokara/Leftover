@@ -24,6 +24,7 @@ struct HomeView: View {
     let screenshotCount: Int
     let videoCount: Int
     let timeCapsuleCount: Int
+    let duplicateDetail: String
     let recentAssets: [PHAsset]
     let isLoading: Bool
 
@@ -31,6 +32,8 @@ struct HomeView: View {
     let onStartBurst: () -> Void
     let onScreenshots: () -> Void
     let onTimeCapsule: () -> Void
+    let onDuplicates: () -> Void
+    let onLargeVideos: () -> Void
     let onAlbums: () -> Void
     let onRecent: (Int) -> Void
     let onComingSoon: (String) -> Void
@@ -183,17 +186,15 @@ struct HomeView: View {
                 rowDivider
                 SortRow(icon: "square.on.square",
                         title: "Duplicates",
-                        detail: "Soon",
-                        dimmed: true) {
-                    onComingSoon("Duplicates are coming soon.")
-                }
+                        detail: duplicateDetail,
+                        dimmed: false,
+                        action: onDuplicates)
                 rowDivider
                 SortRow(icon: "film",
                         title: "Large Videos",
-                        detail: "Soon",
-                        dimmed: true) {
-                    onComingSoon("Video review is coming soon.")
-                }
+                        detail: countLabel(videoCount, "video"),
+                        dimmed: videoCount == 0,
+                        action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") })
                 rowDivider
                 SortRow(icon: "rectangle.stack",
                         title: "Albums",

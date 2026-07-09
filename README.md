@@ -34,6 +34,8 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 - ✅ **Streaks with freezes** — every 7-day streak earns a freeze that auto-bridges a missed day
 - ✅ **Daily reminder** — one gentle nudge, only if you haven't played today
 - ✅ **Screenshot Sweep** and **Time Capsule** cleanup flows
+- ✅ **Duplicates finder** — perceptual-hash groups with the best copy preselected to keep, cached so rescans are instant
+- ✅ **Large Videos** — biggest space hogs in a list, tap to preview, batch toss
 
 ### The vibe
 
@@ -47,8 +49,6 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 
 > From the [roadmap](ROADMAP.md):
 
-- [ ] Duplicates finder (perceptual hash, grouped review)
-- [ ] Large Videos cleanup
 - [ ] Leftover Plus (unlimited bursts, power features) + paywall
 - [ ] Share footer ("Sorted with Leftover 🧹")
 - [ ] Home-screen widget

@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 open Leftover.xcodeproj
 ```
 
-Build and run from Xcode (`Cmd+R`). There are no automated tests, no linter, and no package dependencies — the whole app is three Swift files (`ContentView.swift`, `Theme.swift`, `LeftoverApp.swift`).
+Build and run from Xcode (`Cmd+R`). There are no automated tests, no linter, and no package dependencies. Sources: `ContentView.swift` (app shell + swipe engine + PhotoKit), `HomeView.swift`, `SettingsView.swift`, `DuplicatesView.swift`, `LargeVideosView.swift`, `DuplicateFinder.swift` (dHash engine), `Stats.swift`, `NotificationManager.swift`, `Theme.swift`, `LeftoverApp.swift`.
 
 - `xcodebuild` from the terminal fails on this machine unless the active developer directory points at Xcode (currently it points at CommandLineTools). Fix with `sudo xcode-select -s /Applications/Xcode.app` if CLI builds are needed; otherwise just build in Xcode.
 - **Photo deletion requires a real device.** The simulator sandboxes photo library writes, so delete operations silently fail there. Test the golden path on an iPhone: Splash → Album Picker → swipe a few → Delete Now → verify in Camera Roll.
@@ -62,6 +62,10 @@ Full-size images are *not* preloaded into an array. `PhotoAssetImage` (800×800)
 
 The **"Theater"** identity (dark-only, July 2026 — replaced "Light Table / Darkroom") is implemented in `Theme.swift`: near-black warm `stage` background, `surface` cards, cream accent (`cream`/`creamInk`), KEEP/TOSS semantic colors, SF Rounded display type, named springs (`Theme.flick` / `.settle` / `.pop` / `.throwOut` / `.stackAdvance`), `Haptics` helpers, and three button styles. Drag feedback on the swipe card is the edge glow only (no KEEP/TOSS stamps — removed by request). Dark appearance is forced via `UIUserInterfaceStyle = Dark` in Info.plist plus `.preferredColorScheme(.dark)` on the root — tokens are single-value, no light variants. Glass chrome is `.ultraThinMaterial` + hairline stroke. The swipe screen is a card stack (top card + 2 peeking) with a glass action dock whose buttons share the gesture code path (`throwCard`); there is no filmstrip. `DESIGN.md` is the spec; `AUDIT.md` records the July 2026 audit. Style all new UI through `Theme` tokens — never hardcode colors, fonts, radii, or animation curves in views. The asset-catalog `AccentColor` is cream.
 
-## Future features (from README)
+## Future features (from README / ROADMAP.md)
 
-Batch review mode; auto-suggestions for blurry/duplicate/screenshot photos; dark mode; onboarding; settings screen for custom swipe actions; video support. Follow the established pattern: state + computed view in ContentView, PhotoKit work off the main thread.
+Leftover Plus (StoreKit 2 paywall; free tier keeps classic album swiping), share footer, home-screen widget (Stats already mirrors into an App Group), batch review mode, blur detection. Follow the established pattern: state + computed view in ContentView, PhotoKit work off the main thread.
+
+## PhotoKit gotcha (July 2026)
+
+`PHImageRequestOptions.deliveryMode = .fastFormat` returns nil with `PHPhotosErrorDomain 3303` for assets without materialized small thumbnails (seen on the iOS 26 simulator). Use `.opportunistic` for async thumbnails and `.highQualityFormat` for synchronous fetches — never `.fastFormat` alone.

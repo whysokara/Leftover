@@ -53,6 +53,11 @@ struct ContentView: View {
     @State private var burstIsFallback = false
     @State private var videoCount = 0
     @State private var recentAssets: [PHAsset] = []
+    @StateObject private var duplicateFinder = DuplicateFinder()
+    @State private var showLargeVideos = false
+    @State private var showDuplicates = false
+    @State private var largeVideos: [VideoItem] = []
+    @State private var largeVideosShowingAll = false
     @Environment(\.scenePhase) private var scenePhase
 
     // Swipe-card physics: offset follows the finger, then animates the
@@ -81,6 +86,33 @@ struct ContentView: View {
                 emptyAlbumView
             } else if showBurstComplete {
                 burstCompleteView
+            } else if showLargeVideos {
+                LargeVideosView(
+                    videos: largeVideos,
+                    showingAllSizes: largeVideosShowingAll,
+                    onClose: {
+                        withAnimation(Theme.settle) { showLargeVideos = false }
+                    },
+                    onToss: { assets, freed in
+                        performBatchDelete(assets, freed: freed) {
+                            let ids = Set(assets.map(\.localIdentifier))
+                            largeVideos.removeAll { ids.contains($0.id) }
+                            videoCount = max(videoCount - assets.count, 0)
+                        }
+                    }
+                )
+            } else if showDuplicates {
+                DuplicatesView(
+                    finder: duplicateFinder,
+                    onClose: {
+                        withAnimation(Theme.settle) { showDuplicates = false }
+                    },
+                    onToss: { assets, freed in
+                        performBatchDelete(assets, freed: freed) {
+                            duplicateFinder.removeAssets(withIdentifiers: Set(assets.map(\.localIdentifier)))
+                        }
+                    }
+                )
             } else {
                 homeView
             }
@@ -213,12 +245,21 @@ struct ContentView: View {
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
                     timeCapsuleCount: timeCapsuleAssets.count,
+                    duplicateDetail: duplicateFinder.hasScanned
+                        ? "\(duplicateFinder.groups.count.formatted()) group\(duplicateFinder.groups.count == 1 ? "" : "s")"
+                        : "Scan",
                     recentAssets: recentAssets,
                     isLoading: isLoadingHome,
                     onSettings: { showSettings = true },
                     onStartBurst: { startSession(.burst, assets: burstAssets) },
                     onScreenshots: { startSession(.screenshots, assets: screenshotAssets) },
                     onTimeCapsule: { startSession(.timeCapsule, assets: timeCapsuleAssets) },
+                    onDuplicates: {
+                        withAnimation(Theme.settle) { showDuplicates = true }
+                    },
+                    onLargeVideos: {
+                        withAnimation(Theme.settle) { showLargeVideos = true }
+                    },
                     onAlbums: {
                         withAnimation(Theme.settle) { showAlbumPicker = true }
                     },
@@ -234,11 +275,14 @@ struct ContentView: View {
                     if status == .authorized || status == .limited {
                         self.loadHomeData()
                         #if DEBUG
-                        // Headless-verification hook: jump straight into an
-                        // All Photos session (simctl launch … -LeftoverAutoSession).
-                        if ProcessInfo.processInfo.arguments.contains("-LeftoverAutoSession"),
-                           !self.sessionActive {
+                        // Headless-verification hooks (simctl launch … -Leftover…).
+                        let args = ProcessInfo.processInfo.arguments
+                        if args.contains("-LeftoverAutoSession"), !self.sessionActive {
                             self.loadPhotos(origin: .home)
+                        } else if args.contains("-LeftoverOpenDuplicates") {
+                            self.showDuplicates = true
+                        } else if args.contains("-LeftoverOpenLargeVideos") {
+                            self.showLargeVideos = true
                         }
                         #endif
                     }
@@ -1059,6 +1103,36 @@ struct ContentView: View {
         }
     }
 
+    /// Batch delete outside a swipe session (Large Videos, Duplicates).
+    /// Same PhotoKit pattern as deleteMarkedPhotos: one performChanges,
+    /// stats + reminder wiring, toast on both outcomes.
+    func performBatchDelete(_ assets: [PHAsset], freed: Int64, onSuccess: @escaping () -> Void) {
+        guard !assets.isEmpty else { return }
+        isDeleting = true
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetChangeRequest.deleteAssets(assets as NSArray)
+        }) { success, _ in
+            DispatchQueue.main.async {
+                self.isDeleting = false
+                if success {
+                    Haptics.success()
+                    self.stats.recordDelete(count: assets.count, freed: freed)
+                    self.stats.completeBurst()
+                    self.notifications.reschedule(burstDoneToday: true)
+                    if freed > 0 {
+                        let formatted = ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)
+                        self.showToast("\(assets.count) tossed · \(formatted) freed")
+                    } else {
+                        self.showToast("\(assets.count) tossed")
+                    }
+                    onSuccess()
+                } else {
+                    self.showToast("Couldn’t toss. Photos untouched.")
+                }
+            }
+        }
+    }
+
     func resetToAlbumPicker() {
         self.sessionActive = false
         self.showAlbumPicker = true
@@ -1147,7 +1221,16 @@ struct ContentView: View {
             PHAsset.fetchAssets(with: .image, options: screenshotOptions)
                 .enumerateObjects { asset, _, _ in screenshots.append(asset) }
 
-            let videos = PHAsset.fetchAssets(with: .video, options: nil).count
+            // Videos with sizes for the Large Videos list — those over
+            // 50 MB, or everything if none cross the bar.
+            var videoItems: [VideoItem] = []
+            PHAsset.fetchAssets(with: .video, options: nil)
+                .enumerateObjects { asset, _, _ in
+                    videoItems.append(VideoItem(asset: asset, size: DuplicateFinder.fileSize(asset)))
+                }
+            videoItems.sort { $0.size > $1.size }
+            let bigOnes = videoItems.filter { $0.size >= 50_000_000 }
+            let videos = videoItems.count
 
             // "This week, years ago" — the current ISO week in each prior
             // year, oldest year first so the burst starts furthest back.
@@ -1189,7 +1272,7 @@ struct ContentView: View {
             var backdrop: UIImage?
             if let first = burst.first {
                 let req = PHImageRequestOptions()
-                req.deliveryMode = .fastFormat
+                req.deliveryMode = .highQualityFormat
                 req.isSynchronous = true
                 req.isNetworkAccessAllowed = true
                 PHImageManager.default().requestImage(for: first,
@@ -1203,6 +1286,8 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 self.screenshotAssets = screenshots
                 self.videoCount = videos
+                self.largeVideos = bigOnes.isEmpty ? videoItems : bigOnes
+                self.largeVideosShowingAll = bigOnes.isEmpty
                 self.timeCapsuleAssets = capsule
                 self.burstAssets = burst
                 self.burstIsFallback = fallback
@@ -1239,7 +1324,7 @@ struct ContentView: View {
 
                 let latestDate = firstAsset.creationDate ?? Date.distantPast
                 let requestOptions = PHImageRequestOptions()
-                requestOptions.deliveryMode = .fastFormat
+                requestOptions.deliveryMode = .highQualityFormat
                 requestOptions.isSynchronous = true
                 requestOptions.isNetworkAccessAllowed = true
 
@@ -1265,7 +1350,7 @@ struct ContentView: View {
             var allThumb: UIImage?
             if let first = allAssets.firstObject {
                 let reqOptions = PHImageRequestOptions()
-                reqOptions.deliveryMode = .fastFormat
+                reqOptions.deliveryMode = .highQualityFormat
                 reqOptions.isSynchronous = true
                 reqOptions.isNetworkAccessAllowed = true
                 imageManager.requestImage(for: first,
@@ -1391,17 +1476,19 @@ struct PhotoThumbnailView: View {
         }
         .onAppear {
             let options = PHImageRequestOptions()
-            options.deliveryMode = .fastFormat
+            // .opportunistic: a degraded image lands immediately, the good
+            // one follows — .fastFormat alone can fail with error 3303.
+            options.deliveryMode = .opportunistic
             options.isSynchronous = false
             options.isNetworkAccessAllowed = true
 
             PHImageManager.default().requestImage(
                 for: asset,
-                targetSize: CGSize(width: 80, height: 80),
+                targetSize: CGSize(width: 160, height: 160),
                 contentMode: .aspectFill,
                 options: options
             ) { result, _ in
-                image = result
+                if let result { image = result }
             }
         }
     }
