@@ -45,7 +45,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Daily reminder")
                 } footer: {
-                    Text("At most one gentle nudge a day, only if you haven’t played. Off anytime.")
+                    Text("At most one gentle reminder a day, only if you haven’t cleaned up yet. Off anytime.")
                 }
 
                 Section {

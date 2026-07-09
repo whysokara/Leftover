@@ -120,9 +120,9 @@ final class Stats: ObservableObject {
             ("10 GB freed", lifetimeFreedBytes >= 10 * gb),
             ("5 GB freed", lifetimeFreedBytes >= 5 * gb),
             ("1 GB freed", lifetimeFreedBytes >= gb),
-            ("10,000 photos tossed", lifetimeTossedCount >= 10_000),
-            ("1,000 photos tossed", lifetimeTossedCount >= 1_000),
-            ("100 photos tossed", lifetimeTossedCount >= 100),
+            ("10,000 photos deleted", lifetimeTossedCount >= 10_000),
+            ("1,000 photos deleted", lifetimeTossedCount >= 1_000),
+            ("100 photos deleted", lifetimeTossedCount >= 100),
             ("30-day streak", streakCount >= 30),
             ("7-day streak", streakCount >= 7),
         ]
@@ -148,7 +148,7 @@ final class Stats: ObservableObject {
             let freedText = weekFreed > 0
                 ? " · \(ByteCountFormatter.string(fromByteCount: weekFreed, countStyle: .file)) freed"
                 : ""
-            pendingRecap = "\(weekTossed) tossed\(freedText)"
+            pendingRecap = "\(weekTossed) deleted\(freedText)"
             defaults.set(pendingRecap, forKey: "pendingRecap")
         }
         weekTossed = 0

@@ -1,33 +1,33 @@
-# Leftover Design System — "Theater"
+# Leftover Design System — Native Light
 
 ## The vibe
 
-A private screening room for your own past. The app is **dark-only**: photos glow on a near-black warm stage, chrome floats above them as frosted glass, and the only light besides the photos is cream. Decisions stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
+A native Apple app with real physics. **Light mode**, system colors, system type — the interface disappears and the photos and motion carry the personality. Decisions stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
 
 Personality: quiet, confident, decisive. The photos do the talking; the interface whispers.
 
-Predecessor: the light/dark "Light Table / Darkroom" system (see git history). Retired July 2026 in favor of a single committed dark look.
+Predecessors (see git history): "Light Table / Darkroom", then the dark "Theater" system — both retired July 2026 for the native look.
 
 ## Color
 
-Warm-biased neutrals — never pure gray, never pure black. One accent (cream). Keep/Toss are semantic and **never** decorative.
+**iOS system semantics only** (July 2026: the warm cream/amber palette was retired for a native Apple look). Token names in `Theme.swift` survive; only their values changed — views never reference system colors directly.
 
 | Token | Value | Role |
 |---|---|---|
-| `stage` | `#0D0B09` | Background |
-| `surface` | `#1A1712` | Cards, tiles |
-| `raised` | `#26221B` | Elevated surfaces |
-| `ink` | `#F5EFE4` | Primary text |
-| `dim` | `#9C9285` | Secondary text |
-| `cream` | `#F2E9D8` | Accent: CTAs, progress fill, favorite star, glow |
-| `creamInk` | `#171310` | Text on cream buttons |
-| `keep` | `#82C795` | Keep counter, right edge glow |
-| `toss` | `#E56A55` | Toss counter, left edge glow, delete buttons |
-| `hairline` | `#2E2921` | Borders, progress track |
+| `stage` | `systemBackground` | Background (white — app forces light) |
+| `surface` | `secondarySystemGroupedBackground` | Cards, tiles |
+| `raised` | `tertiarySystemFill` | Icon chips |
+| `ink` | `Color.primary` | Primary text |
+| `dim` | `Color.secondary` | Secondary text |
+| `cream` | `systemBlue` | Accent: CTAs, progress fill, glow (name is historical) |
+| `creamInk` | `.white` | Text on accent buttons |
+| `keep` | `systemGreen` | Keep counter, right edge glow |
+| `toss` | `systemRed` | Delete counter, left edge glow, delete buttons |
+| `hairline` | `separator` | Borders, progress track |
 
-Glass: `.ultraThinMaterial` (always renders dark because the app forces dark appearance) + 1px `hairline` stroke, for the action dock, top-bar pills, and toasts.
+Glass: `.ultraThinMaterial` + 1px `hairline` stroke, for the action dock, top-bar pills, and toasts.
 
-**Dark-only enforcement:** `UIUserInterfaceStyle = Dark` in Info.plist and `.preferredColorScheme(.dark)` on the root view. Tokens are single-value — no light variants exist.
+**Light enforcement:** `UIUserInterfaceStyle = Light` in Info.plist and `.preferredColorScheme(.light)` on the root view. Tokens are system semantics, so dark support later is a two-line change.
 
 ## Typography
 
@@ -67,7 +67,7 @@ Springs, not curves. Respect Reduce Motion (`UIAccessibility.isReduceMotionEnabl
 
 **The signature moment** is now a sequence: drag tilts the card from its base (`anchor: .bottom`), the matching screen edge glows brighter with drag distance, and on release the card flies off along the throw vector while the next card springs forward from the stack. The edge glow is the only decision indicator — no stamps or badges on the photo itself.
 
-**Supporting motion:** sessions deal their cards up from the bottom with a 70ms stagger; undo flies the card back in from the side it left; screens push in from the trailing edge (crossfade under Reduce Motion); home sections cascade in with a 50ms stagger; dock icons kick to 0.78 scale on press; the splash shows on every cold launch — auto-dissolving after 1.4s for returning users — over a system launch screen in `stage` (StageColor).
+**Supporting motion:** sessions deal their cards up from the bottom with a 70ms stagger; undo flies the card back in from the side it left; screens push in from the trailing edge (crossfade under Reduce Motion); home sections cascade in with a 50ms stagger; dock icons kick to 0.78 scale on press; the splash (black wordmark on white) shows on every cold launch — auto-dissolving after 1.4s for returning users — over a white system launch screen (StageColor).
 
 ## The swipe screen (canonical layout)
 
@@ -81,14 +81,15 @@ No filmstrip, no "N / M" pill — the stack is the queue, the bar is the progres
 
 ## Voice
 
-Calm minimal. Short sentences, honest numbers, periods. No exclamation marks, no cheerleading.
+**Native Apple vocabulary** (July 2026: "toss" retired). Delete means delete; buttons are Title Case; messages are sentence case; no exclamation marks, no cutesy lines.
 
-- "That's the whole album!" → **"Album clear."**
-- "Tossed 12 · freed 148 MB" → **"12 tossed · 148 MB freed"**
-- "Today's burst is complete" → **"Done for today."** / "Come back tomorrow."
-- Failure: **"Couldn't toss. Photos untouched."** (never a silent failure)
+- Buttons: **"Delete 12"**, **"Keep All"**, **"Delete Rest"**, **"Start"**
+- End states: **"Album Reviewed"**, **"Burst Complete"**, **"No Duplicates"**
+- Alert: **"Delete 12 Photos?"** — Delete / Keep All / Cancel
+- Celebration: **"23 Deleted"** / "148 MB freed"
+- Failure: **"Couldn't delete. Photos unchanged."** (never silent)
 - The freed-space number is only shown once it's real.
 
 ## Adoption rules
 
-Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is cream.
+Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is system blue.

@@ -28,14 +28,14 @@ enum GroupReviewMode {
     }
     var emptyTitle: String {
         switch self {
-        case .duplicates: return "No duplicates."
-        case .similar:    return "No similar shots."
+        case .duplicates: return "No Duplicates"
+        case .similar:    return "No Similar Photos"
         }
     }
     var emptySubtitle: String {
         switch self {
-        case .duplicates: return "Every photo here is one of a kind."
-        case .similar:    return "No rapid-fire series found."
+        case .duplicates: return "No duplicate photos found."
+        case .similar:    return "No similar photos found."
         }
     }
 }
@@ -101,7 +101,7 @@ struct GroupReviewView: View {
         .background(Theme.stage)
         .overlay(alignment: .bottom) {
             if !marked.isEmpty {
-                Button("Toss \(marked.count) · frees \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))") {
+                Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))") {
                     onToss(markedAssets, markedBytes)
                 }
                 .buttonStyle(TossButtonStyle())
@@ -161,9 +161,9 @@ struct GroupReviewView: View {
                     .font(.footnote.monospacedDigit())
                     .foregroundColor(Theme.dim)
                 Spacer()
-                // Nothing is marked by default; "Toss rest" marks every
+                // Nothing is marked by default; "Delete Rest" marks every
                 // copy except the keeper in one tap.
-                Button(tossCount == 0 ? "Toss rest" : "Keep all") {
+                Button(tossCount == 0 ? "Delete Rest" : "Keep All") {
                     Haptics.impact(.soft)
                     if tossCount == 0 {
                         marked.formUnion(groupIDs.filter { $0 != group.keeperID })
@@ -221,8 +221,8 @@ struct GroupReviewView: View {
             }
         }
         .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel(isMarked ? "Marked to toss" : (isKeeper ? "Keeping, best quality" : "Keeping"))
-        .accessibilityHint("Tap to \(isMarked ? "keep" : "toss") this copy")
+        .accessibilityLabel(isMarked ? "Selected to delete" : (isKeeper ? "Keeping, best quality" : "Keeping"))
+        .accessibilityHint("Tap to \(isMarked ? "keep" : "delete") this copy")
     }
 }
 

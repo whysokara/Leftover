@@ -42,7 +42,7 @@ struct LargeVideosView: View {
                     Image(systemName: "film")
                         .font(.system(size: 36))
                         .foregroundColor(Theme.dim)
-                    Text("No videos.")
+                    Text("No Videos")
                         .font(Theme.title)
                         .foregroundColor(Theme.ink)
                 }
@@ -86,7 +86,7 @@ struct LargeVideosView: View {
         .background(Theme.stage)
         .overlay(alignment: .bottom) {
             if !marked.isEmpty {
-                Button("Toss \(marked.count) · frees \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))") {
+                Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))") {
                     onToss(markedItems.map(\.asset), markedBytes)
                     marked = []
                 }
@@ -172,8 +172,8 @@ struct LargeVideosView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel("Video from \(dateLabel(item.asset.creationDate)), \(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))\(isMarked ? ", marked to toss" : "")")
-        .accessibilityHint("Tap to \(isMarked ? "unmark" : "mark") for tossing")
+        .accessibilityLabel("Video from \(dateLabel(item.asset.creationDate)), \(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))\(isMarked ? ", selected to delete" : "")")
+        .accessibilityHint("Tap to \(isMarked ? "deselect" : "select") for deletion")
     }
 
     private func durationLabel(_ duration: TimeInterval) -> String {

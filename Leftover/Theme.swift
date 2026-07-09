@@ -21,17 +21,19 @@ extension Color {
 }
 
 enum Theme {
-    // Color — the theater
-    static let stage    = Color(hex: 0x0D0B09)   // background
-    static let surface  = Color(hex: 0x1A1712)   // cards, tiles
-    static let raised   = Color(hex: 0x26221B)   // elevated surfaces
-    static let ink      = Color(hex: 0xF5EFE4)   // primary text
-    static let dim      = Color(hex: 0x9C9285)   // secondary text
-    static let cream    = Color(hex: 0xF2E9D8)   // accent: CTAs, progress, glow
-    static let creamInk = Color(hex: 0x171310)   // text on cream
-    static let keep     = Color(hex: 0x82C795)   // keep stamp / counter
-    static let toss     = Color(hex: 0xE56A55)   // toss stamp / delete
-    static let hairline = Color(hex: 0x2E2921)   // borders
+    // Color — iOS system semantics (July 2026: warm Theater palette
+    // retired for the native Apple look; token names kept so views
+    // never change).
+    static let stage    = Color(uiColor: .systemBackground)                 // background
+    static let surface  = Color(uiColor: .secondarySystemGroupedBackground) // cards, tiles
+    static let raised   = Color(uiColor: .tertiarySystemFill)               // icon chips
+    static let ink      = Color.primary                                     // primary text
+    static let dim      = Color.secondary                                   // secondary text
+    static let cream    = Color(uiColor: .systemBlue)                       // accent: CTAs, progress, glow
+    static let creamInk = Color.white                                       // text on accent
+    static let keep     = Color(uiColor: .systemGreen)                      // keep counter / glow
+    static let toss     = Color(uiColor: .systemRed)                        // delete counter / buttons
+    static let hairline = Color(uiColor: .separator)                        // borders
 
     // Type — Apple-standard SF Pro semantic styles, sized like the
     // system apps (Settings/Photos). Rounded and serif faces retired.

@@ -71,6 +71,7 @@ struct ContentView: View {
     @State private var showExitAlert = false
     @State private var dealtIn = true
     @State private var burstTeaser: String? = nil
+    @State private var deleteCelebration: DeleteCelebration?
 
     var body: some View {
         ZStack {
@@ -149,7 +150,7 @@ struct ContentView: View {
             }
 
             if isDeleting {
-                ProgressView("Tossing…")
+                ProgressView("Deleting…")
                     .tint(Theme.ink)
                     .foregroundColor(Theme.ink)
                     .padding()
@@ -182,8 +183,17 @@ struct ContentView: View {
                     .transition(.opacity)
                     .zIndex(2)
             }
+
+            // The payoff: tossed photos get swallowed by the spotlight.
+            if let celebration = deleteCelebration {
+                DeleteBlastView(celebration: celebration) {
+                    withAnimation(Theme.settle) { deleteCelebration = nil }
+                }
+                .transition(.opacity)
+                .zIndex(3)
+            }
         }
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .onChange(of: currentIndex) { newIndex in
             if newIndex < photoAssets.count {
                 currentAsset = photoAssets[newIndex]
@@ -305,7 +315,7 @@ struct ContentView: View {
 
     func startBlurrySession() {
         if libraryScanner.blurryAssets.isEmpty {
-            showToast("Nothing blurry. Sharp shooter.")
+            showToast("No blurry photos found.")
         } else {
             startSession(.blurry, assets: libraryScanner.blurryAssets)
         }
@@ -333,12 +343,12 @@ struct ContentView: View {
             VStack(spacing: 8) {
                 Text("Leftover")
                     .font(Theme.wordmark(46))
-                    .foregroundColor(Theme.cream)
+                    .foregroundColor(Theme.ink)
                     .scaleEffect(pulse ? 1.0 : 0.96)
                     .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: pulse)
                     .background(
-                        // The spotlight — a soft cream pool behind the wordmark.
-                        RadialGradient(colors: [Theme.cream.opacity(0.14), .clear],
+                        // A whisper of a vignette behind the black wordmark.
+                        RadialGradient(colors: [Theme.ink.opacity(0.06), .clear],
                                        center: .center, startRadius: 10, endRadius: 220)
                             .frame(width: 440, height: 440)
                     )
@@ -346,7 +356,7 @@ struct ContentView: View {
                         pulse = true
                     }
 
-                Text("Swipe. Keep. Done.")
+                Text("Clean up your photo library.")
                     .font(.callout)
                     .foregroundColor(Theme.dim)
                     .multilineTextAlignment(.center)
@@ -470,6 +480,17 @@ struct ContentView: View {
                             self.showSimilar = true
                         } else if args.contains("-LeftoverOpenBlurry") {
                             self.openBlurry()
+                        } else if args.contains("-LeftoverBlastDemo") {
+                            // Preview the delete celebration without deleting.
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                let demo = Array(self.recentAssets.prefix(5))
+                                self.prefetchThumbnails(of: demo) { images in
+                                    withAnimation(Theme.settle) {
+                                        self.deleteCelebration = DeleteCelebration(
+                                            images: images, count: 23, freed: 148_000_000)
+                                    }
+                                }
+                            }
                         }
                         #endif
                     }
@@ -499,7 +520,7 @@ struct ContentView: View {
                     withAnimation(Theme.pop) { celebrationScale = 1.0 }
                 }
 
-            Text("Done for today.")
+            Text("Done for Today")
                 .font(Theme.display(30))
                 .foregroundColor(Theme.ink)
                 .multilineTextAlignment(.center)
@@ -670,11 +691,11 @@ struct ContentView: View {
                 .font(.system(size: 36))
                 .foregroundColor(Theme.cream)
 
-            Text("Nothing leftover")
+            Text("Nothing to Review")
                 .font(Theme.title)
                 .foregroundColor(Theme.ink)
 
-            Text("Already spotless.")
+            Text("This album is already clean.")
                 .font(.subheadline)
                 .foregroundColor(Theme.dim)
 
@@ -735,11 +756,11 @@ struct ContentView: View {
             .padding(.top, 8)
             .padding(.bottom, 10)
         }
-        .alert("Toss the \(toBeDeleted.count) you marked?", isPresented: $showExitAlert) {
-            Button("Toss \(toBeDeleted.count)", role: .destructive) {
+        .alert("Delete \(toBeDeleted.count) Photos?", isPresented: $showExitAlert) {
+            Button("Delete \(toBeDeleted.count)", role: .destructive) {
                 deleteMarkedPhotos()
             }
-            Button("Discard marks") {
+            Button("Keep All") {
                 withAnimation(Theme.settle) { exitSession() }
             }
             Button("Cancel", role: .cancel) {}
@@ -814,7 +835,7 @@ struct ContentView: View {
             .foregroundColor(Theme.toss)
             .animation(Theme.settle, value: toBeDeleted.count)
             .accessibilityElement()
-            .accessibilityLabel("\(toBeDeleted.count) marked to toss")
+            .accessibilityLabel("\(toBeDeleted.count) selected to delete")
 
             Spacer()
 
@@ -944,7 +965,7 @@ struct ContentView: View {
         Button {
             deleteMarkedPhotos()
         } label: {
-            Text("Toss \(toBeDeleted.count)")
+            Text("Delete \(toBeDeleted.count)")
                 .font(.subheadline.weight(.semibold))
                 .contentTransition(.numericText())
                 .foregroundColor(.white)
@@ -955,12 +976,12 @@ struct ContentView: View {
         .buttonStyle(ScaleButtonStyle())
         .animation(Theme.settle, value: toBeDeleted.count)
         .transition(.scale.combined(with: .opacity))
-        .accessibilityLabel("Toss \(toBeDeleted.count) marked photos now")
+        .accessibilityLabel("Delete \(toBeDeleted.count) selected photos now")
     }
 
     private var actionDock: some View {
         HStack(spacing: 4) {
-            dockButton("trash", tint: Theme.toss, label: "Toss this photo") {
+            dockButton("trash", tint: Theme.toss, label: "Delete") {
                 throwCard(toss: true)
             }
             dockButton("arrow.uturn.left",
@@ -973,7 +994,7 @@ struct ContentView: View {
                        tint: Theme.cream, label: "Favorite") {
                 favoriteCurrent()
             }
-            dockButton("checkmark", tint: Theme.keep, label: "Keep this photo") {
+            dockButton("checkmark", tint: Theme.keep, label: "Keep") {
                 throwCard(toss: false)
             }
         }
@@ -1126,11 +1147,11 @@ struct ContentView: View {
 
     private var sessionEndTitle: String {
         switch sessionSource {
-        case .album:       return "Album clear."
-        case .burst:       return "Burst done."
-        case .screenshots: return "Screenshots clear."
-        case .timeCapsule: return "Capsule clear."
-        case .blurry:      return "Blur cleared."
+        case .album:       return "Album Reviewed"
+        case .burst:       return "Burst Complete"
+        case .screenshots: return "Screenshots Reviewed"
+        case .timeCapsule: return "Capsule Reviewed"
+        case .blurry:      return "Blurry Photos Reviewed"
         }
     }
 
@@ -1141,7 +1162,7 @@ struct ContentView: View {
                     .font(Theme.title)
                     .foregroundColor(Theme.ink)
 
-                Text("Nothing marked.")
+                Text("No photos selected.")
                     .font(.subheadline)
                     .foregroundColor(Theme.dim)
 
@@ -1162,11 +1183,11 @@ struct ContentView: View {
                     .font(Theme.title)
                     .foregroundColor(Theme.ink)
 
-                Text("\(toBeDeleted.count) ready to toss.")
+                Text("\(toBeDeleted.count) selected to delete.")
                     .font(.subheadline)
                     .foregroundColor(Theme.dim)
 
-                Button("Toss \(toBeDeleted.count)") {
+                Button("Delete \(toBeDeleted.count)") {
                     deleteMarkedPhotos()
                 }
                 .buttonStyle(TossButtonStyle())
@@ -1176,7 +1197,7 @@ struct ContentView: View {
                 if sessionSource == .burst {
                     // Backing out of a toss still finishes the burst — the
                     // habit is showing up, not deleting.
-                    Button("Keep them instead") {
+                    Button("Keep All") {
                         toBeDeleted = []
                         totalSize = 0
                         finishBurst()
@@ -1283,6 +1304,9 @@ struct ContentView: View {
 
     func deleteMarkedPhotos() {
         isDeleting = true
+        // Thumbnails must be captured before the assets stop existing —
+        // they star in the delete celebration.
+        prefetchThumbnails(of: Array(toBeDeleted.prefix(7))) { images in
         PHPhotoLibrary.shared().performChanges({
             PHAssetChangeRequest.deleteAssets(self.toBeDeleted as NSArray)
         }) { success, error in
@@ -1297,11 +1321,8 @@ struct ContentView: View {
                         stats.completeBurst()
                         notifications.reschedule(burstDoneToday: true)
                     }
-                    if totalSize > 0 {
-                        let formattedSize = ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)
-                        showToast("\(count) tossed · \(formattedSize) freed")
-                    } else {
-                        showToast("\(count) tossed")
+                    withAnimation(Theme.settle) {
+                        deleteCelebration = DeleteCelebration(images: images, count: count, freed: totalSize)
                     }
 
                     let tossedIDs = Set(toBeDeleted.map(\.localIdentifier))
@@ -1326,39 +1347,69 @@ struct ContentView: View {
                 } else {
                     // Also reached when the user taps "Don't Allow" on the
                     // system dialog — keep all state so they can retry.
-                    showToast("Couldn’t toss. Photos untouched.")
+                    showToast("Couldn’t delete. Photos unchanged.")
                 }
             }
+        }
         }
     }
 
     /// Batch delete outside a swipe session (Large Videos, Duplicates).
     /// Same PhotoKit pattern as deleteMarkedPhotos: one performChanges,
-    /// stats + reminder wiring, toast on both outcomes.
+    /// stats + reminder wiring, celebration on success, toast on failure.
     func performBatchDelete(_ assets: [PHAsset], freed: Int64, onSuccess: @escaping () -> Void) {
         guard !assets.isEmpty else { return }
         isDeleting = true
-        PHPhotoLibrary.shared().performChanges({
-            PHAssetChangeRequest.deleteAssets(assets as NSArray)
-        }) { success, _ in
-            DispatchQueue.main.async {
-                self.isDeleting = false
-                if success {
-                    Haptics.success()
-                    self.stats.recordDelete(count: assets.count, freed: freed)
-                    self.stats.completeBurst()
-                    self.notifications.reschedule(burstDoneToday: true)
-                    if freed > 0 {
-                        let formatted = ByteCountFormatter.string(fromByteCount: freed, countStyle: .file)
-                        self.showToast("\(assets.count) tossed · \(formatted) freed")
+        prefetchThumbnails(of: Array(assets.prefix(7))) { images in
+            PHPhotoLibrary.shared().performChanges({
+                PHAssetChangeRequest.deleteAssets(assets as NSArray)
+            }) { success, _ in
+                DispatchQueue.main.async {
+                    self.isDeleting = false
+                    if success {
+                        Haptics.success()
+                        self.stats.recordDelete(count: assets.count, freed: freed)
+                        self.stats.completeBurst()
+                        self.notifications.reschedule(burstDoneToday: true)
+                        withAnimation(Theme.settle) {
+                            self.deleteCelebration = DeleteCelebration(images: images,
+                                                                       count: assets.count,
+                                                                       freed: freed)
+                        }
+                        onSuccess()
                     } else {
-                        self.showToast("\(assets.count) tossed")
+                        self.showToast("Couldn’t delete. Photos unchanged.")
                     }
-                    onSuccess()
-                } else {
-                    self.showToast("Couldn’t toss. Photos untouched.")
                 }
             }
+        }
+    }
+
+    /// Small stills of the condemned, captured while they still exist —
+    /// the delete celebration plays them being swallowed by the spotlight.
+    func prefetchThumbnails(of assets: [PHAsset], completion: @escaping ([UIImage]) -> Void) {
+        guard !assets.isEmpty else {
+            completion([])
+            return
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let manager = PHImageManager.default()
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isSynchronous = true
+            options.isNetworkAccessAllowed = true
+            var images: [UIImage] = []
+            for asset in assets {
+                autoreleasepool {
+                    _ = manager.requestImage(for: asset,
+                                             targetSize: CGSize(width: 220, height: 220),
+                                             contentMode: .aspectFill,
+                                             options: options) { result, _ in
+                        if let result { images.append(result) }
+                    }
+                }
+            }
+            DispatchQueue.main.async { completion(images) }
         }
     }
 
@@ -1602,6 +1653,109 @@ struct ContentView: View {
                 self.allPhotosThumbnail = allThumb
                 self.isLoadingAlbums = false
             }
+        }
+    }
+}
+
+// MARK: - Delete celebration (the swallow)
+
+struct DeleteCelebration {
+    let images: [UIImage]
+    let count: Int
+    let freed: Int64
+}
+
+/// The payoff moment after a successful batch delete: the tossed
+/// photos funnel one-by-one into a glowing point at the bottom of the
+/// stage — swallowed by the spotlight — then the numbers pop.
+struct DeleteBlastView: View {
+    let celebration: DeleteCelebration
+    let onDone: () -> Void
+
+    @State private var swallowed = false
+    @State private var glowPulse = false
+    @State private var showNumber = false
+
+    var body: some View {
+        ZStack {
+            Theme.stage.opacity(0.97).ignoresSafeArea()
+
+            // The swallow point — a spotlight pool at the bottom.
+            VStack {
+                Spacer()
+                RadialGradient(colors: [Theme.cream.opacity(glowPulse ? 0.5 : 0.22), .clear],
+                               center: .center, startRadius: 2, endRadius: 150)
+                    .frame(width: 300, height: 300)
+                    .scaleEffect(glowPulse ? 1.25 : 0.9)
+                    .animation(.easeInOut(duration: 0.35).repeatCount(celebration.images.count + 1, autoreverses: true),
+                               value: glowPulse)
+                    .offset(y: 110)
+            }
+            .ignoresSafeArea()
+
+            // The condemned, fanned like the review stack, dropping in
+            // sequence into the light.
+            ForEach(Array(celebration.images.enumerated()), id: \.offset) { index, image in
+                let mid = Double(celebration.images.count - 1) / 2
+                let fan = Double(index) - mid
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 110, height: 110)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(Theme.hairline, lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+                    .rotationEffect(.degrees(swallowed ? fan * 40 + 120 : fan * 7))
+                    .scaleEffect(swallowed ? 0.02 : 1)
+                    .offset(x: swallowed ? 0 : fan * 26,
+                            y: swallowed ? 330 : -60)
+                    .opacity(swallowed ? 0 : 1)
+                    .animation(Theme.throwOut.delay(Double(index) * 0.11), value: swallowed)
+                    .zIndex(Double(celebration.images.count - index))
+            }
+
+            if showNumber {
+                VStack(spacing: 6) {
+                    Text("\(celebration.count) Deleted")
+                        .font(Theme.display(34))
+                        .foregroundColor(Theme.ink)
+                    if celebration.freed > 0 {
+                        Text("\(ByteCountFormatter.string(fromByteCount: celebration.freed, countStyle: .file)) freed")
+                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                            .foregroundColor(Theme.dim)
+                    }
+                }
+                .shadow(color: Theme.cream.opacity(0.25), radius: 24)
+                .transition(.scale(scale: 0.5).combined(with: .opacity))
+            }
+        }
+        .accessibilityElement()
+        .accessibilityLabel("\(celebration.count) photos deleted")
+        .onAppear(perform: run)
+    }
+
+    private func run() {
+        if UIAccessibility.isReduceMotionEnabled || celebration.images.isEmpty {
+            swallowed = true
+            withAnimation(Theme.pop) { showNumber = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { onDone() }
+            return
+        }
+
+        DispatchQueue.main.async {
+            swallowed = true
+            glowPulse = true
+        }
+        let swallowTime = Double(celebration.images.count) * 0.11 + 0.4
+        DispatchQueue.main.asyncAfter(deadline: .now() + swallowTime) {
+            Haptics.success()
+            withAnimation(Theme.pop) { showNumber = true }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + swallowTime + 1.6) {
+            onDone()
         }
     }
 }

@@ -129,7 +129,7 @@ struct HomeView: View {
                         title: "Screenshots",
                         detail: countLabel(screenshotCount),
                         dimmed: screenshotCount == 0,
-                        action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots to sweep.") })
+                        action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots.") })
                 rowDivider
                 SortRow(icon: "clock.arrow.circlepath",
                         title: "Time Capsule",

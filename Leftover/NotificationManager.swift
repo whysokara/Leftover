@@ -88,8 +88,8 @@ final class NotificationManager: ObservableObject {
             content.title = "Your memories are waiting"
             content.body = "\(teaser). Two minutes of swiping."
         } else {
-            content.title = "Your gallery has leftovers 🧹"
-            content.body = "2 minutes of swiping keeps the clutter away."
+            content.title = "Time to tidy your library"
+            content.body = "Two minutes of swiping keeps it clean."
         }
         content.sound = .default
 
