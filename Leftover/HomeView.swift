@@ -78,7 +78,7 @@ struct HomeView: View {
             Button(action: onSettings) {
                 Image(systemName: "gearshape.fill")
                     .font(.system(size: 20))
-                    .foregroundColor(Theme.dim)
+                    .foregroundColor(Theme.ink)
             }
             .accessibilityLabel("Settings")
 
@@ -119,61 +119,58 @@ struct HomeView: View {
     private var cleanupList: some View {
         VStack(alignment: .leading, spacing: 12) {
             VStack(spacing: 0) {
-                SortRow(icon: "sparkles",
+                SortRow(icon: "sparkles", chip: Theme.chipOrange,
                         title: "Memory Burst",
                         detail: burstDetail,
                         dimmed: burstDimmed,
                         action: onStartBurst)
                 rowDivider
-                SortRow(icon: "camera.viewfinder",
+                SortRow(icon: "camera.viewfinder", chip: Theme.chipBlue,
                         title: "Screenshots",
                         detail: countLabel(screenshotCount),
                         dimmed: screenshotCount == 0,
                         action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots.") })
                 rowDivider
-                SortRow(icon: "clock.arrow.circlepath",
+                SortRow(icon: "clock.fill", chip: Theme.chipPurple,
                         title: "Time Capsule",
                         detail: countLabel(timeCapsuleCount),
                         dimmed: timeCapsuleCount == 0,
                         action: timeCapsuleCount > 0 ? onTimeCapsule : { onComingSoon("No old photos this week.") })
                 rowDivider
-                SortRow(icon: "square.stack.3d.down.right",
+                SortRow(icon: "square.stack.3d.down.right.fill", chip: Theme.chipPink,
                         title: "Similar Shots",
                         detail: similarDetail,
                         dimmed: similarDetail == "None",
                         action: onSimilar)
                 rowDivider
-                SortRow(icon: "square.on.square",
+                SortRow(icon: "square.on.square", chip: Theme.chipTeal,
                         title: "Duplicates",
                         detail: duplicateDetail,
                         dimmed: duplicateDetail == "None",
                         action: onDuplicates)
                 rowDivider
-                SortRow(icon: "camera.metering.unknown",
+                SortRow(icon: "wand.and.rays", chip: Theme.chipYellow,
                         title: "Blurry",
                         detail: blurryDetail,
                         dimmed: blurryDetail == "None",
                         action: onBlurry)
                 rowDivider
-                SortRow(icon: "film",
+                SortRow(icon: "film.fill", chip: Theme.chipCoral,
                         title: "Large Videos",
                         detail: countLabel(videoCount),
                         dimmed: videoCount == 0,
                         action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") })
                 rowDivider
-                SortRow(icon: "rectangle.stack",
+                SortRow(icon: "folder.fill", chip: Theme.chipNavy,
                         title: "Albums",
                         detail: "",
                         dimmed: false,
                         action: onAlbums)
             }
             .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(Theme.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(Theme.hairline, lineWidth: 1)
+                    .shadow(color: Theme.ink.opacity(0.08), radius: 16, y: 6)
             )
         }
     }
@@ -182,7 +179,7 @@ struct HomeView: View {
         Rectangle()
             .fill(Theme.hairline)
             .frame(height: 1)
-            .padding(.leading, 66)
+            .padding(.leading, 68)
     }
 
     // Bare values on the trailing edge, like the system Settings app.
@@ -221,6 +218,7 @@ struct HomeView: View {
 
 struct SortRow: View {
     let icon: String
+    let chip: Color
     let title: String
     let detail: String
     let dimmed: Bool
@@ -230,13 +228,10 @@ struct SortRow: View {
         Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(dimmed ? Theme.dim : Theme.cream)
-                    .frame(width: 38, height: 38)
-                    .background(
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .fill(Theme.raised)
-                    )
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(dimmed ? Theme.dim.opacity(0.45) : chip))
 
                 Text(title)
                     .font(.system(.body).weight(.semibold))

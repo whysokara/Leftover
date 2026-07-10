@@ -894,7 +894,7 @@ struct ContentView: View {
             .overlay(alignment: .topTrailing) {
                 if isTop && asset.isFavorite {
                     Image(systemName: "star.fill")
-                        .foregroundColor(Theme.cream.opacity(0.85))
+                        .foregroundColor(Theme.chipYellow)
                         .font(.system(size: 18, weight: .semibold))
                         .padding(.top, 14)
                         .padding(.trailing, 16)
@@ -981,7 +981,7 @@ struct ContentView: View {
 
     private var actionDock: some View {
         HStack(spacing: 4) {
-            dockButton("trash", tint: Theme.toss, label: "Delete") {
+            dockButton("trash.fill", tint: Theme.toss, label: "Delete") {
                 throwCard(toss: true)
             }
             dockButton("arrow.uturn.left",
@@ -991,7 +991,8 @@ struct ContentView: View {
             }
             .disabled(currentIndex == 0)
             dockButton(currentAsset?.isFavorite == true ? "star.fill" : "star",
-                       tint: Theme.cream, label: "Favorite") {
+                       tint: currentAsset?.isFavorite == true ? Theme.cream : Theme.ink,
+                       label: "Favorite") {
                 favoriteCurrent()
             }
             dockButton("checkmark", tint: Theme.keep, label: "Keep") {

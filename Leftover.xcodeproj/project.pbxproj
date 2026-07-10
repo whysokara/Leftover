@@ -19,6 +19,7 @@
 		4EC0FFEE2E3500010000000A /* DuplicateFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000009 /* DuplicateFinder.swift */; };
 		4EC0FFEE2E3500010000000C /* DuplicatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E3500010000000B /* DuplicatesView.swift */; };
 		4EC0FFEE2E3500010000000E /* LargeVideosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E3500010000000D /* LargeVideosView.swift */; };
+		4EC0FFEE2E35000100000010 /* DoodleIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E3500010000000F /* DoodleIcons.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +37,7 @@
 		4EC0FFEE2E35000100000009 /* DuplicateFinder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuplicateFinder.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E3500010000000B /* DuplicatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuplicatesView.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E3500010000000D /* LargeVideosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeVideosView.swift; sourceTree = "<group>"; };
+		4EC0FFEE2E3500010000000F /* DoodleIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoodleIcons.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -74,6 +76,7 @@
 				4EC0FFEE2E35000100000007 /* SettingsView.swift */,
 				4EC0FFEE2E3500010000000B /* DuplicatesView.swift */,
 				4EC0FFEE2E3500010000000D /* LargeVideosView.swift */,
+				4EC0FFEE2E3500010000000F /* DoodleIcons.swift */,
 				4EC0FFEE2E35000100000009 /* DuplicateFinder.swift */,
 				4EC0FFEE2E35000100000001 /* Stats.swift */,
 				4EC0FFEE2E35000100000003 /* NotificationManager.swift */,
@@ -168,6 +171,7 @@
 				4EC0FFEE2E35000100000008 /* SettingsView.swift in Sources */,
 				4EC0FFEE2E3500010000000C /* DuplicatesView.swift in Sources */,
 				4EC0FFEE2E3500010000000E /* LargeVideosView.swift in Sources */,
+				4EC0FFEE2E35000100000010 /* DoodleIcons.swift in Sources */,
 				4EC0FFEE2E3500010000000A /* DuplicateFinder.swift in Sources */,
 				4EC0FFEE2E35000100000002 /* Stats.swift in Sources */,
 				4EC0FFEE2E35000100000004 /* NotificationManager.swift in Sources */,

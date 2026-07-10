@@ -1,8 +1,8 @@
-# Leftover Design System — Native Light
+# Leftover Design System — Headspace-inspired
 
 ## The vibe
 
-A native Apple app with real physics. **Light mode**, system colors, system type — the interface disappears and the photos and motion carry the personality. Decisions stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
+Vibrant and friendly, Headspace-inspired: warm cream canvas (#F7F3EB), deep navy ink (#35325E), chunky SF Rounded heavy headings, white floating cards with soft shadows, capsule buttons in vibrant orange (#F47D31), and every feature color-coded with a filled SF Symbol on its own bright circular chip (`Theme.chipOrange/Blue/Purple/Pink/Teal/Yellow/Coral/Navy`). Decisions stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
 
 Personality: quiet, confident, decisive. The photos do the talking; the interface whispers.
 
@@ -10,20 +10,7 @@ Predecessors (see git history): "Light Table / Darkroom", then the dark "Theater
 
 ## Color
 
-**iOS system semantics only** (July 2026: the warm cream/amber palette was retired for a native Apple look). Token names in `Theme.swift` survive; only their values changed — views never reference system colors directly.
-
-| Token | Value | Role |
-|---|---|---|
-| `stage` | `systemBackground` | Background (white — app forces light) |
-| `surface` | `secondarySystemGroupedBackground` | Cards, tiles |
-| `raised` | `tertiarySystemFill` | Icon chips |
-| `ink` | `Color.primary` | Primary text |
-| `dim` | `Color.secondary` | Secondary text |
-| `cream` | `systemBlue` | Accent: CTAs, progress fill, glow (name is historical) |
-| `creamInk` | `.white` | Text on accent buttons |
-| `keep` | `systemGreen` | Keep counter, right edge glow |
-| `toss` | `systemRed` | Delete counter, left edge glow, delete buttons |
-| `hairline` | `separator` | Borders, progress track |
+**Headspace palette** (July 2026, fifth iteration). `Theme.swift` tokens: `stage`=cream #F7F3EB, `surface`=white, `ink`=navy #35325E, `dim`=#8D89A8, `cream`=orange #F47D31 (accent — name historical), `keep`=teal #3EB49E, `toss`=coral #F25C54, plus the eight `chip*` colors.
 
 Glass: `.ultraThinMaterial` + 1px `hairline` stroke, for the action dock, top-bar pills, and toasts.
 
@@ -31,7 +18,7 @@ Glass: `.ultraThinMaterial` + 1px `hairline` stroke, for the action dock, top-ba
 
 ## Typography
 
-No bundled fonts, no display faces. **SF Pro with Apple's semantic text styles, sized like the system apps** (July 2026: rounded and serif retired — the personality lives in color, motion, and copy, not letterforms).
+No bundled fonts. **SF Rounded heavy/bold** for wordmark/display/titles/buttons via `Theme` tokens; SF Pro for body and details.
 
 | Role | Spec |
 |---|---|
@@ -67,7 +54,7 @@ Springs, not curves. Respect Reduce Motion (`UIAccessibility.isReduceMotionEnabl
 
 **The signature moment** is now a sequence: drag tilts the card from its base (`anchor: .bottom`), the matching screen edge glows brighter with drag distance, and on release the card flies off along the throw vector while the next card springs forward from the stack. The edge glow is the only decision indicator — no stamps or badges on the photo itself.
 
-**Supporting motion:** sessions deal their cards up from the bottom with a 70ms stagger; undo flies the card back in from the side it left; screens push in from the trailing edge (crossfade under Reduce Motion); home sections cascade in with a 50ms stagger; dock icons kick to 0.78 scale on press; the splash (black wordmark on white) shows on every cold launch — auto-dissolving after 1.4s for returning users — over a white system launch screen (StageColor).
+**Supporting motion:** sessions deal their cards up from the bottom with a 70ms stagger; undo flies the card back in from the side it left; screens push in from the trailing edge (crossfade under Reduce Motion); home sections cascade in with a 50ms stagger; dock icons kick to 0.78 scale on press; the splash (ink wordmark on paper) shows on every cold launch — auto-dissolving after 1.4s for returning users — over a paper launch screen (StageColor).
 
 ## The swipe screen (canonical layout)
 
@@ -92,4 +79,4 @@ No filmstrip, no "N / M" pill — the stack is the queue, the bar is the progres
 
 ## Adoption rules
 
-Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is system blue.
+Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is orange #F47D31. Feature icons are filled SF Symbols, white on their chip color. (`DoodleIcons.swift` remains from the doodle experiment but is unused.)

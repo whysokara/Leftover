@@ -21,30 +21,39 @@ extension Color {
 }
 
 enum Theme {
-    // Color — iOS system semantics (July 2026: warm Theater palette
-    // retired for the native Apple look; token names kept so views
-    // never change).
-    static let stage    = Color(uiColor: .systemBackground)                 // background
-    static let surface  = Color(uiColor: .secondarySystemGroupedBackground) // cards, tiles
-    static let raised   = Color(uiColor: .tertiarySystemFill)               // icon chips
-    static let ink      = Color.primary                                     // primary text
-    static let dim      = Color.secondary                                   // secondary text
-    static let cream    = Color(uiColor: .systemBlue)                       // accent: CTAs, progress, glow
-    static let creamInk = Color.white                                       // text on accent
-    static let keep     = Color(uiColor: .systemGreen)                      // keep counter / glow
-    static let toss     = Color(uiColor: .systemRed)                        // delete counter / buttons
-    static let hairline = Color(uiColor: .separator)                        // borders
+    // Color — "Headspace" palette (July 2026): warm cream canvas,
+    // deep navy ink, vibrant orange accent, colorful chips per feature.
+    static let stage    = Color(hex: 0xF7F3EB)   // warm cream canvas
+    static let surface  = Color(hex: 0xFFFFFF)   // white cards
+    static let raised   = Color(hex: 0xF1EAE0)   // soft fill
+    static let ink      = Color(hex: 0x35325E)   // deep navy
+    static let dim      = Color(hex: 0x8D89A8)   // muted lavender-gray
+    static let cream    = Color(hex: 0xF47D31)   // vibrant orange accent
+    static let creamInk = Color.white            // text on accent
+    static let keep     = Color(hex: 0x3EB49E)   // teal
+    static let toss     = Color(hex: 0xF25C54)   // coral
+    static let hairline = Color(hex: 0xE9E2D5)   // sand line
 
-    // Type — Apple-standard SF Pro semantic styles, sized like the
-    // system apps (Settings/Photos). Rounded and serif faces retired.
+    // Feature chip colors (Headspace-style variety)
+    static let chipOrange = Color(hex: 0xF47D31)
+    static let chipBlue   = Color(hex: 0x5479F7)
+    static let chipPurple = Color(hex: 0x8A6FD1)
+    static let chipPink   = Color(hex: 0xEF7BAE)
+    static let chipTeal   = Color(hex: 0x3EB49E)
+    static let chipYellow = Color(hex: 0xF2B33D)
+    static let chipCoral  = Color(hex: 0xF25C54)
+    static let chipNavy   = Color(hex: 0x35325E)
+
+    // Type — chunky rounded (Headspace vibe): SF Rounded heavy display,
+    // SF Pro for body.
     static func display(_ size: CGFloat = 34) -> Font {
-        .system(size: size, weight: .bold)
+        .system(size: size, weight: .heavy, design: .rounded)
     }
     static func wordmark(_ size: CGFloat = 34) -> Font {
-        .system(size: size, weight: .bold)
+        .system(size: size, weight: .heavy, design: .rounded)
     }
-    static let title   = Font.title2.bold()
-    static let button  = Font.body.weight(.semibold)
+    static let title   = Font.system(size: 22, weight: .bold, design: .rounded)
+    static let button  = Font.system(size: 17, weight: .bold, design: .rounded)
 
     // Shape
     static let cardRadius: CGFloat = 28
@@ -78,8 +87,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(Theme.cream)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous))
+            .background(Theme.cream, in: Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
@@ -93,8 +101,7 @@ struct TossButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(Theme.toss)
-            .clipShape(RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous))
+            .background(Theme.toss, in: Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
@@ -117,12 +124,7 @@ struct QuietButtonStyle: ButtonStyle {
             .padding(.vertical, 14)
             .padding(.horizontal, 20)
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(Theme.surface)
-            .overlay(
-                RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous)
-                    .strokeBorder(Theme.hairline, lineWidth: 1.5)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: Theme.buttonRadius, style: .continuous))
+            .background(Theme.surface, in: Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
     }
