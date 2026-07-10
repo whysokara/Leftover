@@ -358,7 +358,11 @@ struct ContentView: View {
                         pulse = true
                     }
 
-                Text("Clean up your photo library.")
+                swipeMnemonic
+                    .padding(.top, 14)
+                    .padding(.bottom, 4)
+
+                Text("Swipe to sort your photo library.")
                     .font(.callout)
                     .foregroundColor(Theme.dim)
                     .multilineTextAlignment(.center)
@@ -417,6 +421,57 @@ struct ContentView: View {
         .opacity(showSplashScreen ? 1 : 0)
         .scaleEffect(showSplashScreen ? 1 : 0.96)
         .animation(.easeInOut(duration: 0.3), value: showSplashScreen)
+    }
+
+    /// A static illustration of the swipe mechanic: a photo card flanked by
+    /// the delete (left) and keep (right) chips, so the app's purpose reads
+    /// instantly without needing a sentence of explanation.
+    private var swipeMnemonic: some View {
+        HStack(spacing: 18) {
+            VStack(spacing: 6) {
+                Image(systemName: "trash.fill")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(Theme.chipCoral))
+                Text("Delete")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(Theme.dim)
+            }
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Theme.raised)
+                    .frame(width: 92, height: 118)
+                    .rotationEffect(.degrees(5))
+
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Theme.surface)
+                    .frame(width: 92, height: 118)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .strokeBorder(Theme.hairline, lineWidth: 1)
+                    )
+                    .overlay(
+                        Image(systemName: "photo.fill")
+                            .font(.system(size: 26))
+                            .foregroundColor(Theme.dim.opacity(0.5))
+                    )
+            }
+
+            VStack(spacing: 6) {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(Theme.chipTeal))
+                Text("Keep")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(Theme.dim)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Swipe left to delete a photo, right to keep it")
     }
 
 
@@ -482,6 +537,8 @@ struct ContentView: View {
                             self.showSimilar = true
                         } else if args.contains("-LeftoverOpenBlurry") {
                             self.openBlurry()
+                        } else if args.contains("-LeftoverOpenSettings") {
+                            self.showSettings = true
                         } else if args.contains("-LeftoverBlastDemo") {
                             // Preview the delete celebration without deleting.
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
@@ -1522,6 +1579,7 @@ struct ContentView: View {
             // "This week, years ago" — the current ISO week in each prior
             // year, oldest year first so the burst starts furthest back.
             var capsule: [PHAsset] = []
+            var capsuleByYear: [(yearsBack: Int, assets: [PHAsset])] = []
             let calendar = Calendar(identifier: .iso8601)
             let now = Date()
             for yearsBack in stride(from: 15, through: 1, by: -1) {
@@ -1532,8 +1590,13 @@ struct ContentView: View {
                     format: "creationDate >= %@ AND creationDate < %@",
                     week.start as NSDate, week.end as NSDate)
                 options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
+                var yearAssets: [PHAsset] = []
                 PHAsset.fetchAssets(with: .image, options: options)
-                    .enumerateObjects { asset, _, _ in capsule.append(asset) }
+                    .enumerateObjects { asset, _, _ in yearAssets.append(asset) }
+                if !yearAssets.isEmpty {
+                    capsule.append(contentsOf: yearAssets)
+                    capsuleByYear.append((yearsBack, yearAssets))
+                }
             }
 
             let recentOptions = PHFetchOptions()
@@ -1545,8 +1608,15 @@ struct ContentView: View {
 
             // Burst: always has something. This week in prior years →
             // a random old month → screenshots → the newest photos.
-            // The daily habit never dead-ends on "None".
-            var burst = Array(capsule.prefix(10))
+            // The daily habit never dead-ends on "None". Capped per year so
+            // a photo-heavy year doesn't crowd out the rest — the point is
+            // a spread across years, not just the oldest one.
+            var burst: [PHAsset] = []
+            for (_, yearAssets) in capsuleByYear {
+                burst.append(contentsOf: yearAssets.prefix(3))
+                if burst.count >= 10 { break }
+            }
+            burst = Array(burst.prefix(10))
             if burst.isEmpty {
                 let monthsBack = Int.random(in: 12...36)
                 if let past = calendar.date(byAdding: .month, value: -monthsBack, to: now),

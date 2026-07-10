@@ -13,6 +13,7 @@ struct SettingsView: View {
     @ObservedObject var notifications: NotificationManager
     @ObservedObject var stats: Stats
     @Environment(\.dismiss) private var dismiss
+    @State private var showPrivacyPolicy = false
 
     var body: some View {
         NavigationStack {
@@ -90,6 +91,31 @@ struct SettingsView: View {
                         Text(versionString)
                             .foregroundColor(Theme.dim)
                     }
+
+                    Button {
+                        showPrivacyPolicy = true
+                    } label: {
+                        HStack {
+                            Text("Privacy Policy")
+                                .foregroundColor(Theme.ink)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(Theme.dim)
+                        }
+                    }
+
+                    HStack {
+                        Text("Developer")
+                        Spacer()
+                        if let url = URL(string: "https://x.com/whysokara") {
+                            Link("Kara (@whysokara)", destination: url)
+                                .foregroundColor(Theme.cream)
+                        } else {
+                            Text("Kara")
+                                .foregroundColor(Theme.dim)
+                        }
+                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -102,6 +128,9 @@ struct SettingsView: View {
                         .font(.body.weight(.semibold))
                         .foregroundColor(Theme.cream)
                 }
+            }
+            .sheet(isPresented: $showPrivacyPolicy) {
+                PrivacyPolicyView()
             }
         }
     }
@@ -120,5 +149,64 @@ struct SettingsView: View {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(version) (\(build))"
+    }
+}
+
+struct PrivacyPolicyView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("Last updated July 2026")
+                        .font(.footnote)
+                        .foregroundColor(Theme.dim)
+
+                    policySection(
+                        title: "Local by design",
+                        body: "Leftover runs entirely on your iPhone. There is no account, no login, and no server — the app doesn't have one. Nothing you do inside Leftover ever leaves your device."
+                    )
+                    policySection(
+                        title: "What Leftover accesses",
+                        body: "Leftover uses Apple's Photos framework to show you your photos and videos and, only when you confirm, to delete the ones you choose. It never uploads, copies, or transmits your photos anywhere."
+                    )
+                    policySection(
+                        title: "What Leftover collects",
+                        body: "Nothing. No analytics, no tracking, no third-party SDKs, no advertising identifiers. Streaks, freezes, and reminder settings are stored only in this app's local storage on your phone."
+                    )
+                    policySection(
+                        title: "Deletions",
+                        body: "Photos you delete go to your iPhone's own Recently Deleted album for 30 days, exactly as if you'd deleted them from the Photos app. Leftover cannot recover or access them after that."
+                    )
+                    policySection(
+                        title: "Contact",
+                        body: "Questions about this policy can be sent to Kara (@whysokara) on X."
+                    )
+                }
+                .padding(20)
+            }
+            .background(Theme.stage)
+            .navigationTitle("Privacy Policy")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .font(.body.weight(.semibold))
+                        .foregroundColor(Theme.cream)
+                }
+            }
+        }
+    }
+
+    private func policySection(title: String, body: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title)
+                .font(.body.weight(.semibold))
+                .foregroundColor(Theme.ink)
+            Text(body)
+                .font(.subheadline)
+                .foregroundColor(Theme.dim)
+        }
     }
 }
