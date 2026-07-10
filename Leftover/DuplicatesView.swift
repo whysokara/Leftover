@@ -209,19 +209,21 @@ struct GroupReviewView: View {
                     .opacity(isMarked ? 0.55 : 1)
                     .overlay(
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(isMarked ? Theme.toss : (isKeeper ? Theme.cream : Theme.hairline),
-                                          lineWidth: isMarked || isKeeper ? 2 : 1)
+                            .strokeBorder(isMarked ? Theme.toss : Theme.hairline,
+                                          lineWidth: isMarked ? 2 : 1)
                     )
 
-                Image(systemName: isMarked ? "trash.circle.fill" : "checkmark.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(isMarked ? Theme.toss : Theme.keep)
-                    .background(Circle().fill(Theme.stage))
-                    .padding(5)
+                if isMarked {
+                    Image(systemName: "trash.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(Theme.toss)
+                        .background(Circle().fill(Theme.stage))
+                        .padding(5)
+                }
             }
         }
         .buttonStyle(ScaleButtonStyle())
-        .accessibilityLabel(isMarked ? "Selected to delete" : (isKeeper ? "Keeping, best quality" : "Keeping"))
+        .accessibilityLabel(isMarked ? "Selected to delete" : (isKeeper ? "Best quality copy" : "Copy"))
         .accessibilityHint("Tap to \(isMarked ? "keep" : "delete") this copy")
     }
 }

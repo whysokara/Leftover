@@ -251,10 +251,12 @@ struct ContentView: View {
 
     private func momentView(_ moment: (title: String, subtitle: String, isMilestone: Bool)) -> some View {
         VStack(spacing: 16) {
-            Image(systemName: moment.isMilestone ? "trophy" : "calendar")
-                .font(.system(size: 44))
-                .foregroundColor(Theme.cream)
-                .shadow(color: Theme.cream.opacity(0.4), radius: 22)
+            Image(systemName: moment.isMilestone ? "trophy.fill" : "calendar")
+                .font(.system(size: 32, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 84, height: 84)
+                .background(Circle().fill(moment.isMilestone ? Theme.chipYellow : Theme.chipPurple))
+                .shadow(color: (moment.isMilestone ? Theme.chipYellow : Theme.chipPurple).opacity(0.4), radius: 22)
 
             Text(moment.title)
                 .font(Theme.display(30))
@@ -504,10 +506,12 @@ struct ContentView: View {
     var burstCompleteView: some View {
         VStack(spacing: 16) {
             Image(systemName: "sparkles")
-                .font(.system(size: 48))
-                .foregroundColor(Theme.cream)
+                .font(.system(size: 34, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 88, height: 88)
+                .background(Circle().fill(Theme.chipOrange))
                 .scaleEffect(celebrationScale)
-                .shadow(color: Theme.cream.opacity(0.45), radius: 24)
+                .shadow(color: Theme.chipOrange.opacity(0.45), radius: 24)
                 .background(
                     // The spotlight blooms open behind the celebration.
                     RadialGradient(colors: [Theme.cream.opacity(0.16), .clear],
@@ -544,7 +548,7 @@ struct ContentView: View {
             if stats.freezeJustEarned {
                 HStack(spacing: 6) {
                     Image(systemName: "snowflake")
-                        .foregroundColor(Theme.cream)
+                        .foregroundColor(Theme.chipBlue)
                     Text("You earned a streak freeze")
                         .font(.subheadline)
                         .foregroundColor(Theme.dim)
@@ -980,39 +984,38 @@ struct ContentView: View {
     }
 
     private var actionDock: some View {
-        HStack(spacing: 4) {
-            dockButton("trash.fill", tint: Theme.toss, label: "Delete") {
+        HStack(spacing: 14) {
+            dockButton("trash.fill", chip: Theme.chipCoral, label: "Delete") {
                 throwCard(toss: true)
             }
             dockButton("arrow.uturn.left",
-                       tint: currentIndex > 0 ? Theme.ink : Theme.dim.opacity(0.35),
+                       chip: currentIndex > 0 ? Theme.chipNavy : Theme.dim.opacity(0.45),
                        label: "Undo") {
                 undoLast()
             }
             .disabled(currentIndex == 0)
             dockButton(currentAsset?.isFavorite == true ? "star.fill" : "star",
-                       tint: currentAsset?.isFavorite == true ? Theme.cream : Theme.ink,
-                       label: "Favorite") {
+                       chip: Theme.chipYellow, label: "Favorite") {
                 favoriteCurrent()
             }
-            dockButton("checkmark", tint: Theme.keep, label: "Keep") {
+            dockButton("checkmark", chip: Theme.chipTeal, label: "Keep") {
                 throwCard(toss: false)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
-        .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(Theme.surface, in: Capsule())
+        .shadow(color: Theme.ink.opacity(0.12), radius: 16, y: 6)
     }
 
-    private func dockButton(_ icon: String, tint: Color, label: String,
+    private func dockButton(_ icon: String, chip: Color, label: String,
                             action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(tint)
-                .frame(width: 60, height: 52)
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 46, height: 46)
+                .background(Circle().fill(chip))
         }
         .buttonStyle(DockButtonStyle())
         .accessibilityLabel(label)
@@ -1684,7 +1687,7 @@ struct DeleteBlastView: View {
             // The swallow point — a spotlight pool at the bottom.
             VStack {
                 Spacer()
-                RadialGradient(colors: [Theme.cream.opacity(glowPulse ? 0.5 : 0.22), .clear],
+                RadialGradient(colors: [Theme.chipCoral.opacity(glowPulse ? 0.5 : 0.22), .clear],
                                center: .center, startRadius: 2, endRadius: 150)
                     .frame(width: 300, height: 300)
                     .scaleEffect(glowPulse ? 1.25 : 0.9)
@@ -1729,7 +1732,7 @@ struct DeleteBlastView: View {
                             .foregroundColor(Theme.dim)
                     }
                 }
-                .shadow(color: Theme.cream.opacity(0.25), radius: 24)
+                .shadow(color: Theme.chipCoral.opacity(0.25), radius: 24)
                 .transition(.scale(scale: 0.5).combined(with: .opacity))
             }
         }
