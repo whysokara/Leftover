@@ -1,6 +1,6 @@
 # 🧹 Leftover – Clean Your Gallery, One Swipe at a Time
 
-Leftover is a minimalist iOS app that helps you clean your photo gallery by swiping—just like Tinder. Swipe left to toss, right to keep, and free up precious storage space without the usual clutter or friction.
+Leftover is a minimalist iOS app that helps you clean your photo gallery by swiping—just like Tinder. Swipe left to delete, right to keep, and free up precious storage space without the usual clutter or friction.
 
 ---
 
@@ -20,28 +20,28 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 ### The swipe
 
 - ✅ **Card stack** — the next photos peek behind the one you're judging
-- ✅ **Swipe left to toss**, right to keep — with real throw physics, KEEP/TOSS stamps, and edge glows
-- ✅ **Action dock** for tap-first users (toss / undo / favorite / keep) — same logic as the gestures
-- ✅ **Keep all**, progress bar, and live keep/toss counters
+- ✅ **Swipe left to delete**, right to keep — with real throw physics and edge glows
+- ✅ **Action dock** for tap-first users (delete / undo / favorite / keep) — same logic as the gestures
+- ✅ **Keep all**, progress bar, and live keep/delete counters
 - ✅ **Undo** any swipe — nothing is deleted until you confirm
 - ✅ **Double-tap to favorite** a photo without leaving the flow
-- ✅ **Batch delete** with a freed-space toast ("12 tossed · 148 MB freed")
+- ✅ **Batch delete** with a freed-space toast ("12 deleted · 148 MB freed")
 
 ### The habit
 
 - ✅ **Home dashboard** — lifetime space freed, streak flame, and today's session at a glance
-- ✅ **Today's Memory Burst** — a daily bite of "this week, years ago" photos (falls back to a screenshot sweep so it never dead-ends)
+- ✅ **Today's Memory Burst** — a daily bite of "this week, years ago" photos, spread across multiple years (falls back to a screenshot sweep so it never dead-ends)
 - ✅ **Streaks with freezes** — every 7-day streak earns a freeze that auto-bridges a missed day
 - ✅ **Daily reminder** — one gentle nudge, only if you haven't played today
 - ✅ **Screenshot Sweep** and **Time Capsule** cleanup flows
 - ✅ **Duplicates finder** — perceptual-hash groups with the best copy preselected to keep, cached so rescans are instant
 - ✅ **Similar Shots** — rapid-fire series (same moment, seconds apart) grouped with the sharpest shot preselected to keep
 - ✅ **Blurry sweep** — sharpness scoring finds the blur, then you judge each one in the swipe deck
-- ✅ **Large Videos** — biggest space hogs in a list, tap to preview, batch toss
+- ✅ **Large Videos** — biggest space hogs in a list, tap to preview, batch delete
 
 ### The vibe
 
-- ✅ **"Theater" design** — dark-only, photos glowing on a near-black stage with floating glass chrome
+- ✅ **Headspace-inspired design** — warm cream canvas, vibrant per-feature colors, chunky rounded type
 - ✅ **Local-only** — no cloud sync, no login, no data collection, ever
 - ✅ Full **Dynamic Type** support and Reduce Motion respect
 
@@ -75,7 +75,7 @@ No package dependencies — the whole app is a handful of Swift files.
 ### Requirements
 
 - Xcode 15 or later
-- iOS 16+ device (iPhone or iPad)
+- iOS 16+ iPhone
 - A real device recommended (simulator photo deletion doesn't work due to sandboxing)
 
 ### Instructions

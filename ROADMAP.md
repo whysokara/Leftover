@@ -1,5 +1,7 @@
 # Leftover Roadmap — from album swiper to daily cleaning habit
 
+> **Status note (2026-07-11):** the phases below are the original blueprint and are mostly historical — the app shipped this feature set through direct iteration on `ContentView.swift` rather than the `AppModel`/`ReviewSession` refactor Phase 0 describes. Everything through Phase 4 is live. `CLAUDE.md` is the authoritative description of the current architecture; treat this file as design history. Phases 5–7 (Plus/paywall, Settings polish, share footer) are still ahead.
+
 Target feature set (from reference screenshots): home dashboard with lifetime-freed stat and streak, a daily "Memory Burst" session, smart cleanup categories (Duplicates, Screenshot Sweep, Large Videos, Time Capsule), an upgraded review screen (progress bar, keep/toss counters, action bar, Keep all), streaks with freezes and a daily reminder, a Settings screen with a privacy trust panel, a Plus subscription with a post-burst paywall, and an optional share-link footer.
 
 Everything stays **local-only** — no accounts, no backend. All state lives in `UserDefaults`/`@AppStorage` plus one small JSON cache file. Every screen uses `Theme` tokens (safelight amber replaces the reference app's green as accent; KEEP/TOSS stamps and haptics carry over everywhere).

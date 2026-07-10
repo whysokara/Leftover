@@ -11,6 +11,7 @@
 		4E5A2D7E2E33FC5600E458F5 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E5A2D7D2E33FC5600E458F5 /* ContentView.swift */; };
 		4E5A2D802E33FC5900E458F5 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E5A2D7F2E33FC5900E458F5 /* Assets.xcassets */; };
 		4E5A2D832E33FC5900E458F5 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 4E5A2D822E33FC5900E458F5 /* Preview Assets.xcassets */; };
+		4EC0FFEE2E35000100000024 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000023 /* PrivacyInfo.xcprivacy */; };
 		4E7A11AB2E340ADF00DB64F9 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7A11AA2E340ADF00DB64F9 /* Theme.swift */; };
 		4EC0FFEE2E35000100000002 /* Stats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000001 /* Stats.swift */; };
 		4EC0FFEE2E35000100000004 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000003 /* NotificationManager.swift */; };
@@ -19,7 +20,6 @@
 		4EC0FFEE2E3500010000000A /* DuplicateFinder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000009 /* DuplicateFinder.swift */; };
 		4EC0FFEE2E3500010000000C /* DuplicatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E3500010000000B /* DuplicatesView.swift */; };
 		4EC0FFEE2E3500010000000E /* LargeVideosView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E3500010000000D /* LargeVideosView.swift */; };
-		4EC0FFEE2E35000100000010 /* DoodleIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E3500010000000F /* DoodleIcons.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -37,7 +37,7 @@
 		4EC0FFEE2E35000100000009 /* DuplicateFinder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuplicateFinder.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E3500010000000B /* DuplicatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuplicatesView.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E3500010000000D /* LargeVideosView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LargeVideosView.swift; sourceTree = "<group>"; };
-		4EC0FFEE2E3500010000000F /* DoodleIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DoodleIcons.swift; sourceTree = "<group>"; };
+		4EC0FFEE2E35000100000023 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -76,12 +76,12 @@
 				4EC0FFEE2E35000100000007 /* SettingsView.swift */,
 				4EC0FFEE2E3500010000000B /* DuplicatesView.swift */,
 				4EC0FFEE2E3500010000000D /* LargeVideosView.swift */,
-				4EC0FFEE2E3500010000000F /* DoodleIcons.swift */,
 				4EC0FFEE2E35000100000009 /* DuplicateFinder.swift */,
 				4EC0FFEE2E35000100000001 /* Stats.swift */,
 				4EC0FFEE2E35000100000003 /* NotificationManager.swift */,
 				4E7A11AA2E340ADF00DB64F9 /* Theme.swift */,
 				4E5A2D7F2E33FC5900E458F5 /* Assets.xcassets */,
+				4EC0FFEE2E35000100000023 /* PrivacyInfo.xcprivacy */,
 				4E5A2D812E33FC5900E458F5 /* Preview Content */,
 				4E5DE5802E34132300DB64F9 /* Info.plist */,
 			);
@@ -156,6 +156,7 @@
 			files = (
 				4E5A2D832E33FC5900E458F5 /* Preview Assets.xcassets in Resources */,
 				4E5A2D802E33FC5900E458F5 /* Assets.xcassets in Resources */,
+				4EC0FFEE2E35000100000024 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -171,7 +172,6 @@
 				4EC0FFEE2E35000100000008 /* SettingsView.swift in Sources */,
 				4EC0FFEE2E3500010000000C /* DuplicatesView.swift in Sources */,
 				4EC0FFEE2E3500010000000E /* LargeVideosView.swift in Sources */,
-				4EC0FFEE2E35000100000010 /* DoodleIcons.swift in Sources */,
 				4EC0FFEE2E3500010000000A /* DuplicateFinder.swift in Sources */,
 				4EC0FFEE2E35000100000002 /* Stats.swift in Sources */,
 				4EC0FFEE2E35000100000004 /* NotificationManager.swift in Sources */,
@@ -312,18 +312,17 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = test.Leftover;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kara.leftover;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -342,18 +341,17 @@
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = test.Leftover;
+				PRODUCT_BUNDLE_IDENTIFIER = com.kara.leftover;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};

@@ -54,7 +54,7 @@ Springs, not curves. Respect Reduce Motion (`UIAccessibility.isReduceMotionEnabl
 
 **The signature moment** is now a sequence: drag tilts the card from its base (`anchor: .bottom`), the matching screen edge glows brighter with drag distance, and on release the card flies off along the throw vector while the next card springs forward from the stack. The edge glow is the only decision indicator — no stamps or badges on the photo itself.
 
-**Supporting motion:** sessions deal their cards up from the bottom with a 70ms stagger; undo flies the card back in from the side it left; screens push in from the trailing edge (crossfade under Reduce Motion); home sections cascade in with a 50ms stagger; dock icons kick to 0.78 scale on press; the splash (ink wordmark on paper) shows on every cold launch — auto-dissolving after 1.4s for returning users — over a paper launch screen (StageColor).
+**Supporting motion:** sessions deal their cards up from the bottom with a 70ms stagger; undo flies the card back in from the side it left; screens push in from the trailing edge (crossfade under Reduce Motion); home sections cascade in with a 50ms stagger; dock icons kick to 0.78 scale on press; the splash (ink wordmark on paper) shows on every cold launch — auto-dissolving after 2.4s for returning users — over a paper launch screen (StageColor).
 
 ## The swipe screen (canonical layout)
 
@@ -79,4 +79,4 @@ No filmstrip, no "N / M" pill — the stack is the queue, the bar is the progres
 
 ## Adoption rules
 
-Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is orange #F47D31. Feature icons are filled SF Symbols, white on their chip color. (`DoodleIcons.swift` remains from the doodle experiment but is unused.)
+Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is orange #F47D31. Feature icons are filled SF Symbols, white on their chip color.

@@ -358,11 +358,7 @@ struct ContentView: View {
                         pulse = true
                     }
 
-                swipeMnemonic
-                    .padding(.top, 14)
-                    .padding(.bottom, 4)
-
-                Text("Swipe to sort your photo library.")
+                Text("Clean up your photo library.")
                     .font(.callout)
                     .foregroundColor(Theme.dim)
                     .multilineTextAlignment(.center)
@@ -414,7 +410,7 @@ struct ContentView: View {
         }
         .onAppear {
             guard !isFirstLaunch else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.4) {
                 withAnimation(Theme.settle) { showSplashScreen = false }
             }
         }
@@ -422,58 +418,6 @@ struct ContentView: View {
         .scaleEffect(showSplashScreen ? 1 : 0.96)
         .animation(.easeInOut(duration: 0.3), value: showSplashScreen)
     }
-
-    /// A static illustration of the swipe mechanic: a photo card flanked by
-    /// the delete (left) and keep (right) chips, so the app's purpose reads
-    /// instantly without needing a sentence of explanation.
-    private var swipeMnemonic: some View {
-        HStack(spacing: 18) {
-            VStack(spacing: 6) {
-                Image(systemName: "trash.fill")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Theme.chipCoral))
-                Text("Delete")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundColor(Theme.dim)
-            }
-
-            ZStack {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Theme.raised)
-                    .frame(width: 92, height: 118)
-                    .rotationEffect(.degrees(5))
-
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Theme.surface)
-                    .frame(width: 92, height: 118)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .strokeBorder(Theme.hairline, lineWidth: 1)
-                    )
-                    .overlay(
-                        Image(systemName: "photo.fill")
-                            .font(.system(size: 26))
-                            .foregroundColor(Theme.dim.opacity(0.5))
-                    )
-            }
-
-            VStack(spacing: 6) {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Theme.chipTeal))
-                Text("Keep")
-                    .font(.caption2.weight(.semibold))
-                    .foregroundColor(Theme.dim)
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Swipe left to delete a photo, right to keep it")
-    }
-
 
     var homeView: some View {
         Group {
@@ -1052,7 +996,8 @@ struct ContentView: View {
             }
             .disabled(currentIndex == 0)
             dockButton(currentAsset?.isFavorite == true ? "star.fill" : "star",
-                       chip: Theme.chipYellow, label: "Favorite") {
+                       chip: currentAsset?.isFavorite == true ? Theme.chipYellow : Theme.dim.opacity(0.45),
+                       label: "Favorite") {
                 favoriteCurrent()
             }
             dockButton("checkmark", chip: Theme.chipTeal, label: "Keep") {
@@ -1364,6 +1309,7 @@ struct ContentView: View {
     }
 
     func deleteMarkedPhotos() {
+        guard !isDeleting else { return }
         isDeleting = true
         // Thumbnails must be captured before the assets stop existing —
         // they star in the delete celebration.
@@ -1419,7 +1365,7 @@ struct ContentView: View {
     /// Same PhotoKit pattern as deleteMarkedPhotos: one performChanges,
     /// stats + reminder wiring, celebration on success, toast on failure.
     func performBatchDelete(_ assets: [PHAsset], freed: Int64, onSuccess: @escaping () -> Void) {
-        guard !assets.isEmpty else { return }
+        guard !assets.isEmpty, !isDeleting else { return }
         isDeleting = true
         prefetchThumbnails(of: Array(assets.prefix(7))) { images in
             PHPhotoLibrary.shared().performChanges({
@@ -1916,7 +1862,9 @@ struct PhotoAssetImage: View {
                              targetSize: CGSize(width: 800, height: 800),
                              contentMode: .aspectFit,
                              options: options) { result, _ in
-            image = result
+            DispatchQueue.main.async {
+                image = result
+            }
         }
     }
 }
@@ -1951,7 +1899,10 @@ struct PhotoThumbnailView: View {
                 contentMode: .aspectFill,
                 options: options
             ) { result, _ in
-                if let result { image = result }
+                guard let result else { return }
+                DispatchQueue.main.async {
+                    image = result
+                }
             }
         }
     }

@@ -4,8 +4,6 @@
 <dict>
     <key>CFBundleDisplayName</key>
     <string>Leftover</string>
-    <key>CFBundleIdentifier</key>
-    <string>com.kara.leftover</string>
     <key>CFBundleExecutable</key>
     <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleInfoDictionaryVersion</key>
@@ -25,11 +23,6 @@
         <key>UIColorName</key>
         <string>StageColor</string>
     </dict>
-    <key>UISupportedInterfaceOrientations</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-    </array>
-
     <!-- Required for photo access -->
     <key>NSPhotoLibraryUsageDescription</key>
     <string>Leftover needs access to your photo library to show your photos for swiping and to delete the ones you toss. Photos never leave your phone.</string>
