@@ -144,3 +144,15 @@ struct BackButton: View {
         .accessibilityLabel(label)
     }
 }
+
+extension View {
+    /// Sections fade-slide in with a small stagger once `appeared` flips
+    /// true — the same on-load reveal HomeView originated, promoted here
+    /// so every screen's first appearance can share it.
+    func cascadeIn(_ appeared: Bool, slot: Double) -> some View {
+        self
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : (UIAccessibility.isReduceMotionEnabled ? 0 : 14))
+            .animation(Theme.settle.delay(slot * 0.05), value: appeared)
+    }
+}

@@ -355,6 +355,11 @@ struct ContentView: View {
                     .font(.callout)
                     .foregroundColor(Theme.dim)
                     .multilineTextAlignment(.center)
+
+                Text("Swipe right to keep, left to delete.")
+                    .font(.footnote)
+                    .foregroundColor(Theme.dim.opacity(0.85))
+                    .multilineTextAlignment(.center)
             }
             .padding(.bottom, 28)
 
@@ -371,27 +376,31 @@ struct ContentView: View {
 
             Spacer()
 
-            if isFirstLaunch {
-                VStack(spacing: 4) {
-                    HStack(spacing: 4) {
-                        Text("Built by")
-                            .font(.footnote)
-                            .foregroundColor(Theme.dim)
+            VStack(spacing: 4) {
+                HStack(spacing: 4) {
+                    Text("Built by")
+                        .font(.footnote)
+                        .foregroundColor(Theme.dim)
 
-                        Link("Kara", destination: URL(string: "https://x.com/whysokara")!)
+                    if let url = URL(string: "https://x.com/whysokara") {
+                        Link("Kara", destination: url)
                             .font(.footnote)
                             .foregroundColor(Theme.cream)
                             .underline()
+                    } else {
+                        Text("Kara")
+                            .font(.footnote)
+                            .foregroundColor(Theme.cream)
                     }
-
-                    Text("No signup. We don’t collect any data.")
-                        .font(.footnote)
-                        .foregroundColor(Theme.dim)
                 }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Built by Kara. No signup required. We don’t collect any data.")
-                .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 60 : 32)
+
+                Text("No signup. We don’t collect any data.")
+                    .font(.footnote)
+                    .foregroundColor(Theme.dim)
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Built by Kara. No signup required. We don’t collect any data.")
+            .padding(.bottom, UIDevice.current.userInterfaceIdiom == .pad ? 60 : 32)
         }
         .multilineTextAlignment(.center)
         .padding()
@@ -425,6 +434,7 @@ struct ContentView: View {
                         ? "Done today"
                         : (burstAssets.isEmpty ? "None" : burstAssets.count.formatted()),
                     burstDimmed: stats.isBurstDoneToday || burstAssets.isEmpty,
+                    burstPreviewAsset: burstAssets.first,
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
                     timeCapsuleCount: timeCapsuleAssets.count,
@@ -658,9 +668,7 @@ struct ContentView: View {
 
     var permissionDeniedView: some View {
         VStack(spacing: 12) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 40))
-                .foregroundColor(Theme.cream)
+            LeftoverBuddy(color: Theme.chipPurple, expression: .sleepy)
 
             Text("Leftover needs your library")
                 .font(Theme.title)
@@ -685,9 +693,7 @@ struct ContentView: View {
 
     var emptyAlbumView: some View {
         VStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 36))
-                .foregroundColor(Theme.cream)
+            LeftoverBuddy(color: Theme.chipOrange, expression: .happy)
 
             Text("Nothing to Review")
                 .font(Theme.title)
@@ -1150,6 +1156,8 @@ struct ContentView: View {
     var deleteConfirmation: some View {
         VStack(spacing: 16) {
             if toBeDeleted.isEmpty {
+                LeftoverBuddy(color: Theme.chipTeal, expression: .happy, size: 64)
+
                 Text(sessionEndTitle)
                     .font(Theme.title)
                     .foregroundColor(Theme.ink)
@@ -1477,7 +1485,7 @@ struct ContentView: View {
     }
 
     /// Computes everything the home dashboard shows: screenshot / video
-    /// counts, the "this week, years ago" time capsule set, today's burst
+    /// counts, the "this day, years ago" time capsule set, today's burst
     /// deck, and the recent strip. Runs per visit (roadmap Phase 1).
     func loadHomeData() {
         guard !isLoadingHome else { return }
@@ -1506,19 +1514,20 @@ struct ContentView: View {
             let bigOnes = videoItems.filter { $0.size >= 50_000_000 }
             let videos = videoItems.count
 
-            // "This week, years ago" — the current ISO week in each prior
-            // year, oldest year first so the burst starts furthest back.
+            // "This day, years ago" — exactly today's month/day in each
+            // prior year, oldest year first so the burst starts furthest
+            // back.
             var capsule: [PHAsset] = []
             var capsuleByYear: [(yearsBack: Int, assets: [PHAsset])] = []
             let calendar = Calendar(identifier: .iso8601)
             let now = Date()
             for yearsBack in stride(from: 15, through: 1, by: -1) {
                 guard let past = calendar.date(byAdding: .year, value: -yearsBack, to: now),
-                      let week = calendar.dateInterval(of: .weekOfYear, for: past) else { continue }
+                      let day = calendar.dateInterval(of: .day, for: past) else { continue }
                 let options = PHFetchOptions()
                 options.predicate = NSPredicate(
                     format: "creationDate >= %@ AND creationDate < %@",
-                    week.start as NSDate, week.end as NSDate)
+                    day.start as NSDate, day.end as NSDate)
                 options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: true)]
                 var yearAssets: [PHAsset] = []
                 PHAsset.fetchAssets(with: .image, options: options)
@@ -1529,14 +1538,16 @@ struct ContentView: View {
                 }
             }
 
+            // The Recent strip shows the whole library, newest first —
+            // no cap. The burst-fallback chain below still only ever
+            // takes the first 10 of this, so it stays a small daily dose.
             let recentOptions = PHFetchOptions()
             recentOptions.sortDescriptors = newestFirst
-            recentOptions.fetchLimit = 9
             var recent: [PHAsset] = []
             PHAsset.fetchAssets(with: .image, options: recentOptions)
                 .enumerateObjects { asset, _, _ in recent.append(asset) }
 
-            // Burst: always has something. This week in prior years →
+            // Burst: always has something. This day in prior years →
             // a random old month → screenshots → the newest photos.
             // The daily habit never dead-ends on "None". Capped per year so
             // a photo-heavy year doesn't crowd out the rest — the point is
@@ -1561,7 +1572,7 @@ struct ContentView: View {
                 }
             }
             if burst.isEmpty { burst = Array(screenshots.prefix(10)) }
-            if burst.isEmpty { burst = recent }
+            if burst.isEmpty { burst = Array(recent.prefix(10)) }
 
             // Reminder teaser ("3 photos from July 2019") — only when the
             // burst is genuinely from the past.

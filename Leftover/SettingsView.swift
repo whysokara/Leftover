@@ -19,10 +19,15 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 Section {
-                    Toggle("Daily reminder", isOn: Binding(
+                    Toggle(isOn: Binding(
                         get: { notifications.reminderEnabled },
                         set: { notifications.setEnabled($0, burstDoneToday: stats.isBurstDoneToday) }
-                    ))
+                    )) {
+                        HStack(spacing: 12) {
+                            iconBadge("bell.fill", chip: Theme.chipOrange)
+                            Text("Daily reminder")
+                        }
+                    }
                     .tint(Theme.cream)
 
                     if notifications.reminderEnabled {
@@ -50,9 +55,8 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    HStack {
-                        Image(systemName: "snowflake")
-                            .foregroundColor(Theme.cream)
+                    HStack(spacing: 12) {
+                        iconBadge("snowflake", chip: Theme.chipBlue)
                         Text("Freezes ready")
                         Spacer()
                         Text("\(stats.freezes)")
@@ -137,12 +141,20 @@ struct SettingsView: View {
 
     private func trustRow(icon: String, text: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icon)
-                .foregroundColor(Theme.cream)
-                .frame(width: 24)
+            iconBadge(icon, chip: Theme.chipTeal)
             Text(text)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Small colored-circle SF Symbol badge — the same language as
+    /// Home's cleanup tiles, so Settings doesn't read as a stock list.
+    private func iconBadge(_ icon: String, chip: Color) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(.white)
+            .frame(width: 28, height: 28)
+            .background(Circle().fill(chip))
     }
 
     private var versionString: String {

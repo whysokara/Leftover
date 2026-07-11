@@ -8,6 +8,8 @@ Personality: quiet, confident, decisive. The photos do the talking; the interfac
 
 Predecessors (see git history): "Light Table / Darkroom", then the dark "Theater" system — both retired July 2026 for the native look.
 
+**Personality pass (July 2026):** the swipe screen and celebrations always had real motion; the list-style cleanup screens didn't. Home's cleanup list is now a **Bento grid** (varied tile sizes carry hierarchy instead of a uniform row list), Duplicates/Similar Shots show their groups as a **fanned photo stack** rather than a flat scroll, and a small procedurally-drawn mascot (`LeftoverBuddy` — circle, two eyes, one mouth curve, several expressions) appears only in empty/celebration states that had no personality before. No hand-drawn illustration anywhere — a prior "Doodle" sketchy-icon system was tried and rejected as looking cheap, so anything drawn stays clean and geometric.
+
 ## Color
 
 **Headspace palette** (July 2026, fifth iteration). `Theme.swift` tokens: `stage`=cream #F7F3EB, `surface`=white, `ink`=navy #35325E, `dim`=#8D89A8, `cream`=orange #F47D31 (accent — name historical), `keep`=teal #3EB49E, `toss`=coral #F25C54, plus the eight `chip*` colors.

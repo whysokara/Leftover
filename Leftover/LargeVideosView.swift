@@ -24,6 +24,7 @@ struct LargeVideosView: View {
 
     @State private var marked: Set<String> = []
     @State private var previewItem: VideoItem?
+    @State private var appeared = false
 
     private var markedItems: [VideoItem] {
         videos.filter { marked.contains($0.id) }
@@ -39,9 +40,7 @@ struct LargeVideosView: View {
             if videos.isEmpty {
                 Spacer()
                 VStack(spacing: 12) {
-                    Image(systemName: "film")
-                        .font(.system(size: 36))
-                        .foregroundColor(Theme.dim)
+                    LeftoverBuddy(color: Theme.chipCoral, expression: .relieved)
                     Text("No Videos")
                         .font(Theme.title)
                         .foregroundColor(Theme.ink)
@@ -59,8 +58,9 @@ struct LargeVideosView: View {
 
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(videos) { item in
+                        ForEach(Array(videos.enumerated()), id: \.element.id) { index, item in
                             videoRow(item)
+                                .cascadeIn(appeared, slot: Double(index))
                             if item.id != videos.last?.id {
                                 Rectangle()
                                     .fill(Theme.hairline)
@@ -97,6 +97,7 @@ struct LargeVideosView: View {
             }
         }
         .animation(Theme.settle, value: marked.isEmpty)
+        .onAppear { appeared = true }
         .sheet(item: $previewItem) { item in
             VideoPreview(asset: item.asset)
         }
@@ -121,13 +122,22 @@ struct LargeVideosView: View {
         let isMarked = marked.contains(item.id)
         return Button {
             Haptics.impact(.light)
-            if isMarked { marked.remove(item.id) } else { marked.insert(item.id) }
+            withAnimation(Theme.pop) {
+                if isMarked { marked.remove(item.id) } else { marked.insert(item.id) }
+            }
         } label: {
             HStack(spacing: 14) {
-                ZStack(alignment: .bottomTrailing) {
+                ZStack {
                     PhotoThumbnailView(asset: item.asset)
                         .frame(width: 64, height: 64)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .shadow(color: Theme.ink.opacity(0.15), radius: 6, y: 3)
+
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(.black.opacity(0.4)))
 
                     Text(durationLabel(item.asset.duration))
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
@@ -135,8 +145,10 @@ struct LargeVideosView: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(.black.opacity(0.65), in: Capsule())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         .padding(4)
                 }
+                .frame(width: 64, height: 64)
                 .onTapGesture {
                     previewItem = item
                 }
@@ -159,6 +171,7 @@ struct LargeVideosView: View {
                 Image(systemName: isMarked ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 22))
                     .foregroundColor(isMarked ? Theme.toss : Theme.dim.opacity(0.5))
+                    .scaleEffect(isMarked ? 1.1 : 1)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)

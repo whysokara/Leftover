@@ -20,12 +20,6 @@ enum GroupReviewMode {
         case .similar:    return "Similar Shots"
         }
     }
-    var emptyIcon: String {
-        switch self {
-        case .duplicates: return "checkmark.seal"
-        case .similar:    return "sparkles"
-        }
-    }
     var emptyTitle: String {
         switch self {
         case .duplicates: return "No Duplicates"
@@ -49,6 +43,13 @@ struct GroupReviewView: View {
     /// localIdentifiers currently marked to toss, across all groups.
     /// Nothing is marked by default — tossing is always the user's call.
     @State private var marked: Set<String> = []
+    @State private var appeared = false
+
+    /// Each screen gets its own color identity — teal for Duplicates,
+    /// pink for Similar Shots — matching their Home dashboard tiles.
+    private var accent: Color {
+        mode == .duplicates ? Theme.chipTeal : Theme.chipPink
+    }
 
     private var groups: [DuplicateGroup] {
         switch mode {
@@ -74,9 +75,7 @@ struct GroupReviewView: View {
             } else if groups.isEmpty {
                 Spacer()
                 VStack(spacing: 12) {
-                    Image(systemName: mode.emptyIcon)
-                        .font(.system(size: 36))
-                        .foregroundColor(Theme.keep)
+                    LeftoverBuddy(color: accent, expression: .relieved)
                     Text(mode.emptyTitle)
                         .font(Theme.title)
                         .foregroundColor(Theme.ink)
@@ -88,8 +87,9 @@ struct GroupReviewView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 16) {
-                        ForEach(groups) { group in
+                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                             groupCard(group)
+                                .cascadeIn(appeared, slot: Double(index))
                         }
                     }
                     .padding(.horizontal, 20)
@@ -99,6 +99,7 @@ struct GroupReviewView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.stage)
+        .onAppear { appeared = true }
         .overlay(alignment: .bottom) {
             if !marked.isEmpty {
                 Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))") {
@@ -168,13 +169,7 @@ struct GroupReviewView: View {
                 .foregroundColor(tossCount == 0 ? Theme.toss : Theme.cream)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(group.assets, id: \.localIdentifier) { asset in
-                        groupThumb(asset, isKeeper: asset.localIdentifier == group.keeperID)
-                    }
-                }
-            }
+            groupThumbFan(group)
         }
         .padding(14)
         .background(
@@ -183,35 +178,83 @@ struct GroupReviewView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Theme.hairline, lineWidth: 1)
+                .strokeBorder(accent.opacity(0.3), lineWidth: 1.5)
         )
+        .shadow(color: accent.opacity(0.12), radius: 12, y: 4)
     }
 
-    private func groupThumb(_ asset: PHAsset, isKeeper: Bool) -> some View {
+    /// A fanned "hand of photos" instead of a flat scrolling row — the
+    /// keeper sits largest and frontmost, the rest spread out behind it
+    /// with a slight rotation and drop shadow (same kind of transform
+    /// math as the swipe screen's card-stack peek).
+    private func groupThumbFan(_ group: DuplicateGroup) -> some View {
+        let others = group.assets.filter { $0.localIdentifier != group.keeperID }
+        let displayedOthers = Array(others.prefix(4))
+        let overflow = others.count - displayedOthers.count
+        let keeperAsset = group.assets.first { $0.localIdentifier == group.keeperID }
+
+        return HStack(spacing: 10) {
+            ZStack(alignment: .leading) {
+                ForEach(Array(displayedOthers.enumerated()), id: \.element.localIdentifier) { index, asset in
+                    let step = Double(index + 1)
+                    fannedThumb(asset, isKeeper: false)
+                        .frame(width: 78, height: 78)
+                        .rotationEffect(.degrees(index.isMultiple(of: 2) ? step * 6 : step * -6))
+                        .offset(x: step * 22, y: 6 + step * 3)
+                        .zIndex(-step)
+                }
+                if let keeperAsset {
+                    fannedThumb(keeperAsset, isKeeper: true)
+                        .frame(width: 92, height: 92)
+                        .zIndex(10)
+                }
+            }
+            .frame(width: 92 + CGFloat(displayedOthers.count) * 22, height: 112, alignment: .leading)
+
+            if overflow > 0 {
+                Text("+\(overflow)")
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(Theme.dim)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(Theme.raised))
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func fannedThumb(_ asset: PHAsset, isKeeper: Bool) -> some View {
         let id = asset.localIdentifier
         let isMarked = marked.contains(id)
 
         return Button {
             Haptics.impact(.light)
-            if isMarked { marked.remove(id) } else { marked.insert(id) }
+            withAnimation(Theme.flick) {
+                if isMarked { marked.remove(id) } else { marked.insert(id) }
+            }
         } label: {
             ZStack(alignment: .topTrailing) {
                 PhotoThumbnailView(asset: asset)
-                    .frame(width: 92, height: 92)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .opacity(isMarked ? 0.55 : 1)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .opacity(isMarked ? 0.5 : 1)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(isMarked ? Theme.toss : Theme.hairline,
-                                          lineWidth: isMarked ? 2 : 1)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(isMarked ? Theme.toss : (isKeeper ? accent : Theme.surface),
+                                          lineWidth: isMarked || isKeeper ? 2.5 : 2)
                     )
+                    .shadow(color: Theme.ink.opacity(0.18), radius: 8, y: 4)
 
                 if isMarked {
                     Image(systemName: "trash.circle.fill")
-                        .font(.system(size: 20))
+                        .font(.system(size: 18))
                         .foregroundColor(Theme.toss)
                         .background(Circle().fill(Theme.stage))
-                        .padding(5)
+                        .padding(4)
+                } else if isKeeper {
+                    Image(systemName: "star.circle.fill")
+                        .font(.system(size: 18))
+                        .foregroundColor(accent)
+                        .background(Circle().fill(Theme.stage))
+                        .padding(4)
                 }
             }
         }
@@ -222,15 +265,43 @@ struct GroupReviewView: View {
 }
 
 /// Shared scan-progress block, also used while preparing a blurry session.
+/// A breathing ring instead of a flat system progress bar — this was the
+/// single flattest screen in the app before.
 struct ScanProgress: View {
     @ObservedObject var scanner: LibraryScanner
+    @State private var pulse = false
+
+    private var progress: Double {
+        scanner.total == 0 ? 0 : Double(scanner.scanned) / Double(scanner.total)
+    }
 
     var body: some View {
-        VStack(spacing: 14) {
-            ProgressView(value: scanner.total == 0 ? 0 : Double(scanner.scanned) / Double(scanner.total))
-                .tint(Theme.cream)
-                .frame(width: 200)
-            Text("Scanned \(scanner.scanned.formatted()) / \(scanner.total.formatted())")
+        VStack(spacing: 18) {
+            ZStack {
+                Circle()
+                    .fill(Theme.cream.opacity(0.12))
+                    .scaleEffect(pulse ? 1.1 : 0.92)
+                    .animation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true), value: pulse)
+
+                Circle()
+                    .stroke(Theme.hairline, lineWidth: 10)
+
+                Circle()
+                    .trim(from: 0, to: progress)
+                    .stroke(Theme.cream, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(Theme.settle, value: progress)
+
+                Text("\(Int(progress * 100))%")
+                    .font(Theme.display(28))
+                    .foregroundColor(Theme.ink)
+                    .contentTransition(.numericText())
+                    .animation(Theme.settle, value: progress)
+            }
+            .frame(width: 140, height: 140)
+            .onAppear { pulse = true }
+
+            Text("Scanned \(scanner.scanned.formatted()) of \(scanner.total.formatted())")
                 .font(.footnote.monospacedDigit())
                 .foregroundColor(Theme.dim)
         }

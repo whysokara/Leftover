@@ -30,7 +30,7 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 ### The habit
 
 - ✅ **Home dashboard** — lifetime space freed, streak flame, and today's session at a glance
-- ✅ **Today's Memory Burst** — a daily bite of "this week, years ago" photos, spread across multiple years (falls back to a screenshot sweep so it never dead-ends)
+- ✅ **Today's Memory Burst** — a daily bite of "this day, years ago" photos, spread across multiple years (falls back to a screenshot sweep so it never dead-ends)
 - ✅ **Streaks with freezes** — every 7-day streak earns a freeze that auto-bridges a missed day
 - ✅ **Daily reminder** — one gentle nudge, only if you haven't played today
 - ✅ **Screenshot Sweep** and **Time Capsule** cleanup flows
