@@ -25,7 +25,7 @@
     </dict>
     <!-- Required for photo access -->
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Leftover needs access to your photo library to show your photos for swiping and to delete the ones you toss. Photos never leave your phone.</string>
+    <string>Leftover needs access to your photo library to show your photos for swiping and to delete the ones you choose. Photos never leave your phone.</string>
 
 </dict>
 </plist>
