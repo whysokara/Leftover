@@ -68,9 +68,13 @@ struct HomeView: View {
         HStack(spacing: 14) {
             Button(action: onSettings) {
                 Image(systemName: "gearshape.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(Theme.ink)
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Theme.cream))
+                    .shadow(color: Theme.ink.opacity(0.15), radius: 6, y: 3)
             }
+            .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel("Settings")
 
             Spacer()
@@ -162,6 +166,7 @@ struct HomeView: View {
                 if let burstPreviewAsset {
                     PhotoThumbnailView(asset: burstPreviewAsset)
                         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                        .blur(radius: 2)
                         .opacity(burstDimmed ? 0.5 : 1)
                         .saturation(burstDimmed ? 0.4 : 1)
                     LinearGradient(colors: [.black.opacity(burstDimmed ? 0.4 : 0.55), .clear],

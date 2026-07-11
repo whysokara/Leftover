@@ -53,6 +53,11 @@ struct ContentView: View {
     @State private var screenshotAssets: [PHAsset] = []
     @State private var timeCapsuleAssets: [PHAsset] = []
     @State private var burstAssets: [PHAsset] = []
+    /// A random burst photo for the Home hero tile — chosen once per
+    /// `loadHomeData()` pass so it's stable during the visit but varies
+    /// from one app open to the next, rather than always showing the
+    /// same photo.
+    @State private var burstPreviewAsset: PHAsset?
     @State private var videoCount = 0
     @State private var recentAssets: [PHAsset] = []
     @StateObject private var libraryScanner = LibraryScanner()
@@ -434,7 +439,7 @@ struct ContentView: View {
                         ? "Done today"
                         : (burstAssets.isEmpty ? "None" : burstAssets.count.formatted()),
                     burstDimmed: stats.isBurstDoneToday || burstAssets.isEmpty,
-                    burstPreviewAsset: burstAssets.first,
+                    burstPreviewAsset: burstPreviewAsset,
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
                     timeCapsuleCount: timeCapsuleAssets.count,
@@ -942,7 +947,7 @@ struct ContentView: View {
     }
 
     private var dragGesture: some Gesture {
-        DragGesture()
+        DragGesture(minimumDistance: 12)
             .onChanged { value in
                 cardOffset = value.translation
             }
@@ -1573,6 +1578,7 @@ struct ContentView: View {
             }
             if burst.isEmpty { burst = Array(screenshots.prefix(10)) }
             if burst.isEmpty { burst = Array(recent.prefix(10)) }
+            let previewAsset = burst.randomElement()
 
             // Reminder teaser ("3 photos from July 2019") — only when the
             // burst is genuinely from the past.
@@ -1593,6 +1599,7 @@ struct ContentView: View {
                 self.largeVideosShowingAll = bigOnes.isEmpty
                 self.timeCapsuleAssets = capsule
                 self.burstAssets = burst
+                self.burstPreviewAsset = previewAsset
                 self.recentAssets = recent
                 self.isLoadingHome = false
             }
