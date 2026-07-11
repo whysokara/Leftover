@@ -289,16 +289,9 @@ struct ContentView: View {
     var blurryScanScreen: some View {
         VStack(spacing: 0) {
             HStack(spacing: 14) {
-                Button {
+                BackButton {
                     withAnimation(Theme.settle) { showBlurryScan = false }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(Theme.ink)
-                        .frame(width: 40, height: 40)
-                        .background(.ultraThinMaterial, in: Circle())
                 }
-                .accessibilityLabel("Back to home")
 
                 Text("Blurry")
                     .font(Theme.title)
@@ -781,20 +774,13 @@ struct ContentView: View {
 
     private var reviewTopBar: some View {
         HStack(spacing: 14) {
-            Button {
+            BackButton(label: "End session") {
                 if toBeDeleted.isEmpty {
                     withAnimation(Theme.settle) { exitSession() }
                 } else {
                     showExitAlert = true
                 }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(Theme.ink)
-                    .frame(width: 40, height: 40)
-                    .background(.ultraThinMaterial, in: Circle())
             }
-            .accessibilityLabel("End session")
 
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -1445,9 +1431,7 @@ struct ContentView: View {
     }
 
     func assetFileSize(_ asset: PHAsset) -> Int64 {
-        PHAssetResource.assetResources(for: asset)
-            .compactMap { $0.value(forKey: "fileSize") as? Int64 }
-            .first ?? 0
+        LibraryScanner.fileSize(asset)
     }
 
     func presentLimitedLibraryPicker() {

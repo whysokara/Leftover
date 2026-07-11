@@ -147,7 +147,10 @@ final class LibraryScanner: ObservableObject {
         duplicateGroups = Self.pruning(duplicateGroups, removing: ids)
         similarGroups = Self.pruning(similarGroups, removing: ids)
         blurryAssets.removeAll { ids.contains($0.localIdentifier) }
-        for id in ids { cache.removeValue(forKey: id) }
+        for id in ids {
+            cache.removeValue(forKey: id)
+            Self.fileSizeCache.removeObject(forKey: id as NSString)
+        }
         saveCache()
     }
 
@@ -230,13 +233,12 @@ final class LibraryScanner: ObservableObject {
 
     // MARK: - Grouping
 
-    // Union-find over pairwise Hamming distance. O(n²) on cheap UInt64
-    // ops — fine into the tens of thousands of photos; the cache keeps
-    // the expensive part (image loads) incremental.
-    private static func groupDuplicates(_ items: [(PHAsset, CacheEntry)],
-                                        sharpness: [String: Float]) -> [DuplicateGroup] {
-        let n = items.count
-        var parent = Array(0..<n)
+    /// Path-halving union-find: partitions `0..<count` into clusters
+    /// wherever `shouldMerge` says two indices belong together. O(n²)
+    /// on cheap comparisons — fine into the tens of thousands of photos;
+    /// the cache keeps the expensive part (image loads) incremental.
+    private static func unionFindClusters(count: Int, shouldMerge: (Int, Int) -> Bool) -> [[Int]] {
+        var parent = Array(0..<count)
         func find(_ x: Int) -> Int {
             var x = x
             while parent[x] != x {
@@ -246,21 +248,27 @@ final class LibraryScanner: ObservableObject {
             return x
         }
 
-        for i in 0..<n {
-            let hi = items[i].1.h
-            for j in (i + 1)..<n {
-                if (hi ^ items[j].1.h).nonzeroBitCount <= duplicateThreshold {
-                    let ri = find(i), rj = find(j)
-                    if ri != rj { parent[ri] = rj }
-                }
+        for i in 0..<count {
+            for j in (i + 1)..<count where shouldMerge(i, j) {
+                let ri = find(i), rj = find(j)
+                if ri != rj { parent[ri] = rj }
             }
         }
 
-        var buckets: [Int: [PHAsset]] = [:]
-        for i in 0..<n {
-            buckets[find(i), default: []].append(items[i].0)
+        var buckets: [Int: [Int]] = [:]
+        for i in 0..<count {
+            buckets[find(i), default: []].append(i)
         }
-        return makeGroups(from: Array(buckets.values), sharpness: sharpness)
+        return Array(buckets.values)
+    }
+
+    private static func groupDuplicates(_ items: [(PHAsset, CacheEntry)],
+                                        sharpness: [String: Float]) -> [DuplicateGroup] {
+        let indexClusters = unionFindClusters(count: items.count) { i, j in
+            (items[i].1.h ^ items[j].1.h).nonzeroBitCount <= duplicateThreshold
+        }
+        let memberSets = indexClusters.map { indices in indices.map { items[$0].0 } }
+        return makeGroups(from: memberSets, sharpness: sharpness)
     }
 
     /// Rapid-fire series: cluster by shot time first, then group loosely
@@ -271,7 +279,7 @@ final class LibraryScanner: ObservableObject {
             ($0.0.creationDate ?? .distantPast) < ($1.0.creationDate ?? .distantPast)
         }
 
-        var clusters: [[(PHAsset, UInt64)]] = []
+        var timeClusters: [[(PHAsset, UInt64)]] = []
         var current: [(PHAsset, UInt64)] = []
         var lastDate: Date?
         for (asset, entry) in sorted {
@@ -281,38 +289,21 @@ final class LibraryScanner: ObservableObject {
                current.count < similarClusterCap {
                 current.append((asset, entry.h))
             } else {
-                if current.count > 1 { clusters.append(current) }
+                if current.count > 1 { timeClusters.append(current) }
                 current = [(asset, entry.h)]
             }
             lastDate = date
         }
-        if current.count > 1 { clusters.append(current) }
+        if current.count > 1 { timeClusters.append(current) }
 
         var memberSets: [[PHAsset]] = []
-        for cluster in clusters {
-            let n = cluster.count
-            var parent = Array(0..<n)
-            func find(_ x: Int) -> Int {
-                var x = x
-                while parent[x] != x {
-                    parent[x] = parent[parent[x]]
-                    x = parent[x]
-                }
-                return x
+        for cluster in timeClusters {
+            let indexClusters = unionFindClusters(count: cluster.count) { i, j in
+                (cluster[i].1 ^ cluster[j].1).nonzeroBitCount <= similarThreshold
             }
-            for i in 0..<n {
-                for j in (i + 1)..<n {
-                    if (cluster[i].1 ^ cluster[j].1).nonzeroBitCount <= similarThreshold {
-                        let ri = find(i), rj = find(j)
-                        if ri != rj { parent[ri] = rj }
-                    }
-                }
-            }
-            var buckets: [Int: [PHAsset]] = [:]
-            for i in 0..<n {
-                buckets[find(i), default: []].append(cluster[i].0)
-            }
-            memberSets.append(contentsOf: buckets.values.filter { $0.count > 1 })
+            memberSets.append(contentsOf: indexClusters
+                .map { indices in indices.map { cluster[$0].0 } }
+                .filter { $0.count > 1 })
         }
         return makeGroups(from: memberSets, sharpness: sharpness)
     }
@@ -342,10 +333,22 @@ final class LibraryScanner: ObservableObject {
         return groups.sorted { $0.wastedBytes > $1.wastedBytes }
     }
 
+    /// NSCache is thread-safe out of the box (unlike a plain Dictionary)
+    /// and evicts under memory pressure — this is called from multiple
+    /// background queues (scan, home-data load) plus the main thread
+    /// (live swipe-session size tracking).
+    private static let fileSizeCache = NSCache<NSString, NSNumber>()
+
     static func fileSize(_ asset: PHAsset) -> Int64 {
-        PHAssetResource.assetResources(for: asset)
+        let key = asset.localIdentifier as NSString
+        if let cached = fileSizeCache.object(forKey: key) {
+            return cached.int64Value
+        }
+        let size = PHAssetResource.assetResources(for: asset)
             .compactMap { $0.value(forKey: "fileSize") as? Int64 }
             .first ?? 0
+        fileSizeCache.setObject(NSNumber(value: size), forKey: key)
+        return size
     }
 
     // MARK: - Cache

@@ -49,9 +49,7 @@ enum Theme {
     static func display(_ size: CGFloat = 34) -> Font {
         .system(size: size, weight: .heavy, design: .rounded)
     }
-    static func wordmark(_ size: CGFloat = 34) -> Font {
-        .system(size: size, weight: .heavy, design: .rounded)
-    }
+    static func wordmark(_ size: CGFloat = 34) -> Font { display(size) }
     static let title   = Font.system(size: 22, weight: .bold, design: .rounded)
     static let button  = Font.system(size: 17, weight: .bold, design: .rounded)
 
@@ -127,5 +125,22 @@ struct QuietButtonStyle: ButtonStyle {
             .background(Theme.surface, in: Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1.0)
             .animation(.easeOut(duration: 0.15), value: configuration.isPressed)
+    }
+}
+
+/// The glass "xmark" circle used to exit every full-screen list/session.
+struct BackButton: View {
+    var label: String = "Back to home"
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "xmark")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(Theme.ink)
+                .frame(width: 40, height: 40)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .accessibilityLabel(label)
     }
 }

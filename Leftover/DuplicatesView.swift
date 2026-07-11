@@ -125,14 +125,7 @@ struct GroupReviewView: View {
 
     private var header: some View {
         HStack(spacing: 14) {
-            Button(action: onClose) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(Theme.ink)
-                    .frame(width: 40, height: 40)
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-            .accessibilityLabel("Back to home")
+            BackButton(action: onClose)
 
             Text(mode.title)
                 .font(Theme.title)
