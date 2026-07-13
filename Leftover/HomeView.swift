@@ -165,6 +165,8 @@ struct HomeView: View {
                 // of going blank.
                 if let burstPreviewAsset {
                     PhotoThumbnailView(asset: burstPreviewAsset)
+                        .frame(maxWidth: .infinity, minHeight: 156, maxHeight: 156)
+                        .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
                         .blur(radius: 2)
                         .opacity(burstDimmed ? 0.5 : 1)
