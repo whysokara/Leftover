@@ -301,7 +301,9 @@ struct ScanProgress: View {
             .frame(width: 140, height: 140)
             .onAppear { pulse = true }
 
-            Text("Scanned \(scanner.scanned.formatted()) of \(scanner.total.formatted())")
+            Text(scanner.isGrouping
+                 ? "Finding matches…"
+                 : "Scanned \(scanner.scanned.formatted()) of \(scanner.total.formatted())")
                 .font(.footnote.monospacedDigit())
                 .foregroundColor(Theme.dim)
         }

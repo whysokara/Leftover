@@ -32,6 +32,9 @@ final class LibraryScanner: ObservableObject {
     @Published var similarGroups: [DuplicateGroup] = []
     @Published var blurryAssets: [PHAsset] = []
     @Published var hasScanned = false
+    /// True while grouping runs after the per-photo hash pass finishes —
+    /// lets the UI say something other than a frozen 100%.
+    @Published var isGrouping = false
 
     /// Hamming distance at or below which two hashes are the same photo.
     private static let duplicateThreshold = 5
@@ -123,6 +126,11 @@ final class LibraryScanner: ObservableObject {
             }
             if newSinceSave > 0 { self.saveCache() }
 
+            // Grouping runs after every photo is hashed, so the scanned/total
+            // ring is already pinned at 100% for however long this takes —
+            // flip a flag so the UI can say so instead of looking hung.
+            DispatchQueue.main.async { self.isGrouping = true }
+
             let sharpnessByID = Dictionary(uniqueKeysWithValues: items.map { ($0.0.localIdentifier, $0.1.s) })
             let duplicates = Self.groupDuplicates(items, sharpness: sharpnessByID)
             let similar = Self.groupSimilar(items, sharpness: sharpnessByID)
@@ -136,6 +144,7 @@ final class LibraryScanner: ObservableObject {
                 self.similarGroups = similar
                 self.blurryAssets = blurry
                 self.isScanning = false
+                self.isGrouping = false
                 self.hasScanned = true
             }
         }
@@ -296,14 +305,22 @@ final class LibraryScanner: ObservableObject {
         }
         if current.count > 1 { timeClusters.append(current) }
 
+        // Chain consecutive shots rather than clustering all pairs in the
+        // time bucket — similarThreshold is loose (25% of the hash), so
+        // all-pairs union-find could transitively bridge A→B→C into one
+        // group even when A and C don't actually look alike.
         var memberSets: [[PHAsset]] = []
         for cluster in timeClusters {
-            let indexClusters = unionFindClusters(count: cluster.count) { i, j in
-                (cluster[i].1 ^ cluster[j].1).nonzeroBitCount <= similarThreshold
+            var chain: [(PHAsset, UInt64)] = [cluster[0]]
+            for item in cluster.dropFirst() {
+                if (item.1 ^ chain.last!.1).nonzeroBitCount <= similarThreshold {
+                    chain.append(item)
+                } else {
+                    if chain.count > 1 { memberSets.append(chain.map(\.0)) }
+                    chain = [item]
+                }
             }
-            memberSets.append(contentsOf: indexClusters
-                .map { indices in indices.map { cluster[$0].0 } }
-                .filter { $0.count > 1 })
+            if chain.count > 1 { memberSets.append(chain.map(\.0)) }
         }
         return makeGroups(from: memberSets, sharpness: sharpness)
     }
