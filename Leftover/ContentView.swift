@@ -52,10 +52,6 @@ struct ContentView: View {
     @State private var isLoadingHome = false
     @State private var screenshotAssets: [PHAsset] = []
     @State private var burstAssets: [PHAsset] = []
-    /// Random burst photo for the Home card art — picked once per
-    /// `loadHomeData()` pass so it varies between app opens instead of
-    /// always showing the same photo.
-    @State private var burstPreviewAsset: PHAsset?
     @State private var videoCount = 0
     @State private var recentAssets: [PHAsset] = []
     @StateObject private var libraryScanner = LibraryScanner()
@@ -436,13 +432,6 @@ struct ContentView: View {
                         ? "Done today"
                         : (burstAssets.isEmpty ? "None" : burstAssets.count.formatted()),
                     burstDimmed: stats.isBurstDoneToday || burstAssets.isEmpty,
-                    burstPreview: burstPreviewAsset,
-                    duplicatePreview: libraryScanner.duplicateGroups.first?.assets.first,
-                    similarPreview: libraryScanner.similarGroups.first?.assets.first,
-                    screenshotPreview: screenshotAssets.first,
-                    blurryPreview: libraryScanner.blurryAssets.first,
-                    videoPreview: largeVideos.first?.asset,
-                    albumPreview: recentAssets.first,
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
                     duplicateDetail: scanDetail(count: libraryScanner.duplicateGroups.count),
@@ -1597,7 +1586,6 @@ struct ContentView: View {
             }
             if burst.isEmpty { burst = Array(screenshots.prefix(10)) }
             if burst.isEmpty { burst = Array(recent.prefix(10)) }
-            let previewAsset = burst.randomElement()
 
             // Reminder teaser ("3 photos from July 2019") — only when the
             // burst is genuinely from the past.
@@ -1617,7 +1605,6 @@ struct ContentView: View {
                 self.largeVideos = bigOnes.isEmpty ? videoItems : bigOnes
                 self.largeVideosShowingAll = bigOnes.isEmpty
                 self.burstAssets = burst
-                self.burstPreviewAsset = previewAsset
                 self.recentAssets = recent
                 self.isLoadingHome = false
             }

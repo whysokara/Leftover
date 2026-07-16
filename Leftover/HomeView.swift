@@ -26,14 +26,6 @@ struct HomeView: View {
     let burstDetail: String
     let burstDimmed: Bool
 
-    let burstPreview: PHAsset?
-    let duplicatePreview: PHAsset?
-    let similarPreview: PHAsset?
-    let screenshotPreview: PHAsset?
-    let blurryPreview: PHAsset?
-    let videoPreview: PHAsset?
-    let albumPreview: PHAsset?
-
     let screenshotCount: Int
     let videoCount: Int
     let duplicateDetail: String
@@ -61,12 +53,15 @@ struct HomeView: View {
     @State private var dragFraction: CGFloat = 0
 
     private let cardSize: CGFloat = 210
-    /// Where the ±1 neighbor's center sits — far enough that a wide,
-    /// even slice of it shows beside the front card.
-    private let sidePush: CGFloat = 155
-    /// Cards beyond ±1 stack like spines at this fixed interval — an
-    /// even ridge of edges, not a messy cascade of overlapping faces.
-    private let spineSpacing: CGFloat = 34
+    /// Where the ±1 neighbor's center sits — past the enlarged front
+    /// card's edge plus the neighbor's projected half-width with margin
+    /// to spare (perspective widens the near edge beyond plain cos θ),
+    /// so no two cards ever touch.
+    private let sidePush: CGFloat = 216
+    /// Interval between cards beyond ±1 — a full tilted card width plus
+    /// a gap, keeping every card separate (on a phone that runs them
+    /// offscreen, so effectively one clean neighbor shows per side).
+    private let spineSpacing: CGFloat = 145
     /// Finger travel that equals one card of movement.
     private let dragUnit: CGFloat = 140
     private let reflectionHeight: CGFloat = 80
@@ -144,68 +139,77 @@ struct HomeView: View {
         let title: String
         let detail: String
         let dimmed: Bool
-        let previewAsset: PHAsset?
         let action: () -> Void
     }
 
-    // Every category is always present — empty ones just dim, so the
-    // carousel's length and order never change under the user's thumb.
+    // Categories with nothing to review drop out of the carousel —
+    // "None" only appears after a real load/scan says so, while the
+    // pre-scan "Scan" and loading "…" states stay visible. Albums is
+    // navigation and Memory Burst dims when done today; both stay.
     private var cards: [CoverCard] {
-        [
+        let all = [
             CoverCard(id: "burst", icon: "sparkles", chip: Theme.chipOrange,
                       title: "Memory Burst", detail: burstDetail,
-                      dimmed: burstDimmed, previewAsset: burstPreview, action: onStartBurst),
+                      dimmed: burstDimmed, action: onStartBurst),
             CoverCard(id: "duplicates", icon: "square.on.square", chip: Theme.chipTeal,
                       title: "Duplicates", detail: duplicateDetail,
-                      dimmed: duplicateDetail == "None", previewAsset: duplicatePreview, action: onDuplicates),
+                      dimmed: false, action: onDuplicates),
             CoverCard(id: "similar", icon: "square.stack.3d.down.right", chip: Theme.chipPink,
                       title: "Similar Shots", detail: similarDetail,
-                      dimmed: similarDetail == "None", previewAsset: similarPreview, action: onSimilar),
+                      dimmed: false, action: onSimilar),
             CoverCard(id: "screenshots", icon: "camera.viewfinder", chip: Theme.chipBlue,
                       title: "Screenshots", detail: countLabel(screenshotCount),
-                      dimmed: screenshotCount == 0 && !isLoading, previewAsset: screenshotPreview,
+                      dimmed: false,
                       action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots.") }),
             CoverCard(id: "blurry", icon: "wand.and.rays", chip: Theme.chipYellow,
                       title: "Blurry", detail: blurryDetail,
-                      dimmed: blurryDetail == "None", previewAsset: blurryPreview, action: onBlurry),
+                      dimmed: false, action: onBlurry),
             CoverCard(id: "videos", icon: "film", chip: Theme.chipCoral,
                       title: "Large Videos", detail: countLabel(videoCount),
-                      dimmed: videoCount == 0 && !isLoading, previewAsset: videoPreview,
+                      dimmed: false,
                       action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") }),
             CoverCard(id: "albums", icon: "folder", chip: Theme.chipNavy,
                       title: "Albums", detail: "",
-                      dimmed: false, previewAsset: albumPreview, action: onAlbums),
+                      dimmed: false, action: onAlbums),
         ]
+        return all.filter { $0.detail != "None" }
     }
 
     private var coverFlow: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
-                    coverCardView(card, at: index)
-                }
+        // No name readout below — the front card's own label carries it.
+        // The extra vertical padding seats the carousel closer to the
+        // middle of the gap between the wordmark and the Recent strip.
+        ZStack {
+            ForEach(Array(cards.enumerated()), id: \.element.id) { index, card in
+                coverCardView(card, at: index)
             }
-            .frame(maxWidth: .infinity)
-            .frame(height: cardSize + reflectionHeight + 4)
-            .contentShape(Rectangle())
-            .gesture(carouselDrag)
-
-            // The centered card's name under the flow, like the song
-            // title readout in the old Music app.
-            VStack(spacing: 2) {
-                Text(cards[selectedIndex].title)
-                    .font(.system(.headline).weight(.semibold))
-                    .foregroundColor(Theme.ink)
-                    .contentTransition(.opacity)
-                Text(cards[selectedIndex].detail.isEmpty ? " " : cards[selectedIndex].detail)
-                    .font(.footnote.monospacedDigit())
-                    .foregroundColor(Theme.dim)
-                    .contentTransition(.opacity)
-            }
-            .frame(maxWidth: .infinity)
-            .animation(Theme.settle, value: selectedIndex)
-            .accessibilityHidden(true) // the cards themselves carry the labels
         }
+        .frame(maxWidth: .infinity)
+        .frame(height: cardSize + reflectionHeight + 4)
+        .contentShape(Rectangle())
+        .gesture(carouselDrag)
+        .padding(.top, 34)
+        .padding(.bottom, 10)
+        // The card set can shrink when a scan/load reports "None" —
+        // snap back to the front so selectedIndex always names a real
+        // card (the tap handler and wrap math both depend on it).
+        .onChange(of: cards.count) { _ in
+            selectedIndex = 0
+            dragFraction = 0
+        }
+    }
+
+    /// Gentle fade across the visible spine ridge, then a fast fade to
+    /// zero just before the wrap-around distance (cards.count / 2), so
+    /// a card teleporting from one side to the other is never visible.
+    private func cardOpacity(_ absD: CGFloat) -> Double {
+        let base = 1 - Double(min(absD, 3)) * 0.13
+        guard absD > 3 else { return base }
+        return max(0, base - Double(absD - 3) * 1.8)
+    }
+
+    private func wrappedIndex(_ i: Int) -> Int {
+        ((i % cards.count) + cards.count) % cards.count
     }
 
     /// Classic Cover Flow placement: the ±1 neighbors clear the front
@@ -219,8 +223,14 @@ struct HomeView: View {
     }
 
     private func coverCardView(_ card: CoverCard, at index: Int) -> some View {
-        // Signed distance from the front position, in card slots.
-        let d = CGFloat(index - selectedIndex) - dragFraction
+        // Signed distance from the front position in card slots, wrapped
+        // to the nearest equivalent so the carousel is endless — the last
+        // card sits one slot left of the first, and spinning past either
+        // end just keeps going. Cards fade out before |d| reaches the
+        // wrap point (count/2), so the side-swap never shows.
+        let count = CGFloat(cards.count)
+        let raw = CGFloat(index - selectedIndex) - dragFraction
+        let d = raw - (raw / count).rounded() * count
         let clamped = max(-1, min(1, d))
         let absD = abs(d)
         let reduceMotion = UIAccessibility.isReduceMotionEnabled
@@ -245,13 +255,18 @@ struct HomeView: View {
                 )
                 .accessibilityHidden(true)
         }
-        .scaleEffect(1 - min(absD, 1) * 0.12)
-        .rotation3DEffect(.degrees(reduceMotion ? 0 : Double(-clamped) * 42),
+        // The spotlight card runs slightly over natural size; sides
+        // drop to 0.88 so the front one clearly leads.
+        .scaleEffect(1.06 - min(absD, 1) * 0.18)
+        // Gentler tilt than classic Cover Flow — the flatter, more
+        // tile-like side cards keep their projected width narrow, which
+        // is what guarantees the clean gaps between cards.
+        .rotation3DEffect(.degrees(reduceMotion ? 0 : Double(-clamped) * 28),
                           axis: (x: 0, y: 1, z: 0),
                           perspective: 0.55)
         .offset(x: xOffset(for: d))
         .zIndex(-Double(absD))
-        .opacity(1 - Double(min(absD, 4)) * 0.08)
+        .opacity(cardOpacity(absD))
         .onTapGesture {
             if index == selectedIndex {
                 card.action()
@@ -268,40 +283,29 @@ struct HomeView: View {
 
     private func cardFace(_ card: CoverCard, labelOpacity: Double = 1) -> some View {
         ZStack(alignment: .bottomLeading) {
-            if let asset = card.previewAsset {
-                PhotoThumbnailView(asset: asset)
-                    .frame(width: cardSize, height: cardSize)
-                    .clipped()
-                    .saturation(card.dimmed ? 0.3 : 1)
-                    .opacity(card.dimmed ? 0.55 : 1)
-                // Scrim so the label reads over any photo.
-                LinearGradient(colors: [.black.opacity(0.65), .clear],
-                               startPoint: .bottom, endPoint: .center)
-            } else {
-                RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                    .fill(card.chip.opacity(card.dimmed ? 0.10 : 0.2))
-                Image(systemName: card.icon)
-                    .font(.system(size: 54, weight: .medium))
-                    .foregroundColor(card.dimmed ? Theme.dim : card.chip)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
+            // Solid chip color — white glyph and text carry the content,
+            // like the app's old filled-icon language. Dimmed cards go
+            // solid raised-gray instead.
+            RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                .fill(card.dimmed ? Theme.raised : card.chip)
+            Image(systemName: card.icon)
+                .font(.system(size: 54, weight: .medium))
+                .foregroundColor(card.dimmed ? Theme.dim : .white.opacity(0.95))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            HStack(spacing: 8) {
-                IconBadge(icon: card.icon, chip: card.chip, size: 30, dimmed: card.dimmed)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(card.title)
-                        .font(.system(.subheadline).weight(.semibold))
-                        .foregroundColor(card.dimmed ? Theme.dim : .white)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(card.title)
+                    .font(.system(.subheadline).weight(.semibold))
+                    .foregroundColor(card.dimmed ? Theme.dim : .white)
+                    .lineLimit(1)
+                if !card.detail.isEmpty {
+                    Text(card.detail)
+                        .font(.caption.monospacedDigit())
+                        .foregroundColor(card.dimmed ? Theme.dim : .white.opacity(0.85))
                         .lineLimit(1)
-                    if !card.detail.isEmpty {
-                        Text(card.detail)
-                            .font(.caption.monospacedDigit())
-                            .foregroundColor(card.dimmed ? Theme.dim : .white.opacity(0.8))
-                            .lineLimit(1)
-                    }
                 }
             }
-            .padding(12)
+            .padding(14)
             .opacity(labelOpacity)
         }
         .frame(width: cardSize, height: cardSize)
@@ -315,25 +319,18 @@ struct HomeView: View {
     private var carouselDrag: some Gesture {
         DragGesture(minimumDistance: 12)
             .onChanged { value in
-                let raw = -value.translation.width / dragUnit
-                let target = CGFloat(selectedIndex) + raw
-                // Rubber-band past the ends instead of scrolling into nothing.
-                if target < 0 {
-                    dragFraction = raw - target * 2 / 3
-                } else if target > CGFloat(cards.count - 1) {
-                    dragFraction = raw - (target - CGFloat(cards.count - 1)) * 2 / 3
-                } else {
-                    dragFraction = raw
-                }
+                // Endless — no rubber-banding, there are no ends.
+                dragFraction = -value.translation.width / dragUnit
             }
             .onEnded { value in
-                // Snap by where the flick was headed, not where it stopped.
-                let projected = -value.predictedEndTranslation.width / dragUnit
-                let target = (CGFloat(selectedIndex) + projected).rounded()
-                let landing = Int(max(0, min(CGFloat(cards.count - 1), target)))
-                if landing != selectedIndex { Haptics.impact(.light) }
+                // Snap by where the flick was headed, not where it
+                // stopped — capped so one flick can't spin the wheel
+                // several full laps.
+                let projected = max(-4, min(4, -value.predictedEndTranslation.width / dragUnit))
+                let steps = Int((CGFloat(selectedIndex) + projected).rounded()) - selectedIndex
+                if steps != 0 { Haptics.impact(.light) }
                 withAnimation(Theme.settle) {
-                    selectedIndex = landing
+                    selectedIndex = wrappedIndex(selectedIndex + steps)
                     dragFraction = 0
                 }
             }
