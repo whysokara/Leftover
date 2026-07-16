@@ -25,6 +25,7 @@ struct LargeVideosView: View {
     @State private var marked: Set<String> = []
     @State private var previewItem: VideoItem?
     @State private var appeared = false
+    @State private var showDeleteConfirm = false
 
     private var markedItems: [VideoItem] {
         videos.filter { marked.contains($0.id) }
@@ -88,14 +89,24 @@ struct LargeVideosView: View {
         .overlay(alignment: .bottom) {
             if !marked.isEmpty {
                 Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))") {
-                    onToss(markedItems.map(\.asset), markedBytes)
-                    marked = []
+                    showDeleteConfirm = true
                 }
                 .buttonStyle(TossButtonStyle())
                 .padding(.horizontal, 20)
                 .padding(.bottom, 12)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
+        // Same confirm step as the swipe screen — every delete in the
+        // app asks once, shows the size, and notes the 30-day safety net.
+        .alert("Delete \(marked.count) Videos?", isPresented: $showDeleteConfirm) {
+            Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))", role: .destructive) {
+                onToss(markedItems.map(\.asset), markedBytes)
+                marked = []
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
         }
         .animation(Theme.settle, value: marked.isEmpty)
         .onAppear { appeared = true }

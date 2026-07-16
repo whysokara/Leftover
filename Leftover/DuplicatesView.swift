@@ -44,6 +44,7 @@ struct GroupReviewView: View {
     /// Nothing is marked by default — tossing is always the user's call.
     @State private var marked: Set<String> = []
     @State private var appeared = false
+    @State private var showDeleteConfirm = false
 
     /// Each screen gets its own color identity — teal for Duplicates,
     /// pink for Similar Shots — matching their Home dashboard tiles.
@@ -104,13 +105,23 @@ struct GroupReviewView: View {
         .overlay(alignment: .bottom) {
             if !marked.isEmpty {
                 Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))") {
-                    onToss(markedAssets, markedBytes)
+                    showDeleteConfirm = true
                 }
                 .buttonStyle(TossButtonStyle())
                 .padding(.horizontal, 20)
                 .padding(.bottom, 12)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+        }
+        // Same confirm step as the swipe screen — every delete in the
+        // app asks once, shows the size, and notes the 30-day safety net.
+        .alert("Delete \(marked.count) Photos?", isPresented: $showDeleteConfirm) {
+            Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))", role: .destructive) {
+                onToss(markedAssets, markedBytes)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
         }
         .animation(Theme.settle, value: marked.isEmpty)
         .onAppear {
@@ -170,7 +181,7 @@ struct GroupReviewView: View {
                 .foregroundColor(tossCount == 0 ? Theme.toss : Theme.cream)
             }
 
-            groupThumbFan(group)
+            groupThumbRow(group)
         }
         .padding(14)
         .background(
@@ -184,46 +195,27 @@ struct GroupReviewView: View {
         .shadow(color: accent.opacity(0.12), radius: 12, y: 4)
     }
 
-    /// A fanned "hand of photos" instead of a flat scrolling row — the
-    /// keeper sits largest and frontmost, the rest spread out behind it
-    /// with a slight rotation and drop shadow (same kind of transform
-    /// math as the swipe screen's card-stack peek).
-    private func groupThumbFan(_ group: DuplicateGroup) -> some View {
-        let others = group.assets.filter { $0.localIdentifier != group.keeperID }
-        let displayedOthers = Array(others.prefix(4))
-        let overflow = others.count - displayedOthers.count
-        let keeperAsset = group.assets.first { $0.localIdentifier == group.keeperID }
-
-        return HStack(spacing: 10) {
-            ZStack(alignment: .leading) {
-                ForEach(Array(displayedOthers.enumerated()), id: \.element.localIdentifier) { index, asset in
-                    let step = Double(index + 1)
-                    fannedThumb(asset, isKeeper: false)
-                        .frame(width: 78, height: 78)
-                        .rotationEffect(.degrees(index.isMultiple(of: 2) ? step * 6 : step * -6))
-                        .offset(x: step * 22, y: 6 + step * 3)
-                        .zIndex(-step)
-                }
-                if let keeperAsset {
-                    fannedThumb(keeperAsset, isKeeper: true)
-                        .frame(width: 92, height: 92)
-                        .zIndex(10)
+    /// Every photo in the group at the same size, in a normal scrolling
+    /// row — the keeper is first and marked with a star badge, but isn't
+    /// enlarged or overlapped by the others. A fanned/overlapping layout
+    /// was tried here and repeatedly made it impossible to actually see
+    /// enough of each photo to judge it, especially on a phone-width
+    /// card; scrolling guarantees every photo is fully visible instead
+    /// of hidden behind the next one or a "+N" count.
+    private func groupThumbRow(_ group: DuplicateGroup) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                // group.assets is keeper-first (see makeGroups in
+                // DuplicateFinder.swift), so no re-sorting needed here.
+                ForEach(group.assets, id: \.localIdentifier) { asset in
+                    groupThumb(asset, isKeeper: asset.localIdentifier == group.keeperID)
+                        .frame(width: 84, height: 84)
                 }
             }
-            .frame(width: 92 + CGFloat(displayedOthers.count) * 22, height: 112, alignment: .leading)
-
-            if overflow > 0 {
-                Text("+\(overflow)")
-                    .font(.footnote.weight(.bold))
-                    .foregroundColor(Theme.dim)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(Theme.raised))
-            }
-            Spacer(minLength: 0)
         }
     }
 
-    private func fannedThumb(_ asset: PHAsset, isKeeper: Bool) -> some View {
+    private func groupThumb(_ asset: PHAsset, isKeeper: Bool) -> some View {
         let id = asset.localIdentifier
         let isMarked = marked.contains(id)
 

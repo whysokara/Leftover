@@ -52,6 +52,10 @@ struct ContentView: View {
     @State private var isLoadingHome = false
     @State private var screenshotAssets: [PHAsset] = []
     @State private var burstAssets: [PHAsset] = []
+    /// Random burst photo for the Home card art — picked once per
+    /// `loadHomeData()` pass so it varies between app opens instead of
+    /// always showing the same photo.
+    @State private var burstPreviewAsset: PHAsset?
     @State private var videoCount = 0
     @State private var recentAssets: [PHAsset] = []
     @StateObject private var libraryScanner = LibraryScanner()
@@ -432,6 +436,13 @@ struct ContentView: View {
                         ? "Done today"
                         : (burstAssets.isEmpty ? "None" : burstAssets.count.formatted()),
                     burstDimmed: stats.isBurstDoneToday || burstAssets.isEmpty,
+                    burstPreview: burstPreviewAsset,
+                    duplicatePreview: libraryScanner.duplicateGroups.first?.assets.first,
+                    similarPreview: libraryScanner.similarGroups.first?.assets.first,
+                    screenshotPreview: screenshotAssets.first,
+                    blurryPreview: libraryScanner.blurryAssets.first,
+                    videoPreview: largeVideos.first?.asset,
+                    albumPreview: recentAssets.first,
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
                     duplicateDetail: scanDetail(count: libraryScanner.duplicateGroups.count),
@@ -756,13 +767,15 @@ struct ContentView: View {
         }
         .edgeSwipeBack { endSessionTapped() }
         .alert("Delete \(toBeDeleted.count) Photos?", isPresented: $showExitAlert) {
-            Button("Delete \(toBeDeleted.count)", role: .destructive) {
+            Button("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))", role: .destructive) {
                 deleteMarkedPhotos()
             }
             Button("Keep All") {
                 withAnimation(Theme.settle) { exitSession() }
             }
             Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
         }
         .onAppear {
             DispatchQueue.main.async { dealtIn = true }
@@ -924,9 +937,16 @@ struct ContentView: View {
                             anchor: .bottom)
             .zIndex(Double(3 - depth))
             .gesture(dragGesture, including: isTop && !isThrowingCard ? .all : .none)
-            .onTapGesture(count: 2) {
-                if isTop { favoriteCurrent() }
-            }
+            // highPriorityGesture (not onTapGesture) so the double-tap
+            // unambiguously wins over the drag recognizer above, instead
+            // of relying only on the drag's minimum-distance threshold —
+            // belt and suspenders against real fingers moving slightly
+            // between the two taps.
+            .highPriorityGesture(
+                TapGesture(count: 2).onEnded {
+                    if isTop { favoriteCurrent() }
+                }
+            )
             // Deal-in: cards rise from the bottom with a stagger when a
             // session starts.
             .offset(y: dealtIn ? 0 : (UIAccessibility.isReduceMotionEnabled ? 0 : 560))
@@ -963,7 +983,7 @@ struct ContentView: View {
         Button {
             deleteMarkedPhotos()
         } label: {
-            Text("Delete \(toBeDeleted.count)")
+            Text("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
                 .font(.subheadline.weight(.semibold))
                 .contentTransition(.numericText())
                 .foregroundColor(.white)
@@ -972,9 +992,9 @@ struct ContentView: View {
                 .background(Theme.toss, in: Capsule())
         }
         .buttonStyle(ScaleButtonStyle())
-        .animation(Theme.settle, value: toBeDeleted.count)
+        .animation(Theme.settle, value: totalSize)
         .transition(.scale.combined(with: .opacity))
-        .accessibilityLabel("Delete \(toBeDeleted.count) selected photos now")
+        .accessibilityLabel("Delete \(toBeDeleted.count) selected photos, freeing \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
     }
 
     private var actionDock: some View {
@@ -1187,12 +1207,16 @@ struct ContentView: View {
                     .font(.subheadline)
                     .foregroundColor(Theme.dim)
 
-                Button("Delete \(toBeDeleted.count)") {
+                Button("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))") {
                     deleteMarkedPhotos()
                 }
                 .buttonStyle(TossButtonStyle())
                 .padding(.horizontal)
                 .padding(.top, 8)
+
+                Text("They'll stay in Recently Deleted for 30 days.")
+                    .font(.caption)
+                    .foregroundColor(Theme.dim)
 
                 if sessionSource == .burst {
                     // Backing out of a toss still finishes the burst — the
@@ -1573,6 +1597,7 @@ struct ContentView: View {
             }
             if burst.isEmpty { burst = Array(screenshots.prefix(10)) }
             if burst.isEmpty { burst = Array(recent.prefix(10)) }
+            let previewAsset = burst.randomElement()
 
             // Reminder teaser ("3 photos from July 2019") — only when the
             // burst is genuinely from the past.
@@ -1592,6 +1617,7 @@ struct ContentView: View {
                 self.largeVideos = bigOnes.isEmpty ? videoItems : bigOnes
                 self.largeVideosShowingAll = bigOnes.isEmpty
                 self.burstAssets = burst
+                self.burstPreviewAsset = previewAsset
                 self.recentAssets = recent
                 self.isLoadingHome = false
             }
@@ -1743,6 +1769,9 @@ struct DeleteBlastView: View {
                             .font(.subheadline.weight(.semibold).monospacedDigit())
                             .foregroundColor(Theme.dim)
                     }
+                    Text("In Recently Deleted for 30 days")
+                        .font(.caption)
+                        .foregroundColor(Theme.dim.opacity(0.8))
                 }
                 .shadow(color: Theme.chipCoral.opacity(0.25), radius: 24)
                 .transition(.scale(scale: 0.5).combined(with: .opacity))
