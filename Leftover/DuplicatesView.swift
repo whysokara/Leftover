@@ -99,6 +99,7 @@ struct GroupReviewView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.stage)
+        .edgeSwipeBack(action: onClose)
         .onAppear { appeared = true }
         .overlay(alignment: .bottom) {
             if !marked.isEmpty {
@@ -271,8 +272,16 @@ struct ScanProgress: View {
     @ObservedObject var scanner: LibraryScanner
     @State private var pulse = false
 
+    // The hash pass (scanned/total) and the grouping pass (groupingProgress)
+    // are two real, separately-tracked phases of the same scan — split the
+    // ring evenly between them instead of hitting 100% once hashing
+    // finishes and sitting frozen while grouping (often the slower half
+    // for a large library) runs invisibly afterward.
     private var progress: Double {
-        scanner.total == 0 ? 0 : Double(scanner.scanned) / Double(scanner.total)
+        guard scanner.total > 0 else { return 0 }
+        let hashProgress = Double(scanner.scanned) / Double(scanner.total)
+        guard scanner.isGrouping else { return hashProgress / 2 }
+        return 0.5 + scanner.groupingProgress / 2
     }
 
     var body: some View {

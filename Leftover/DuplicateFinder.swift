@@ -35,6 +35,11 @@ final class LibraryScanner: ObservableObject {
     /// True while grouping runs after the per-photo hash pass finishes —
     /// lets the UI say something other than a frozen 100%.
     @Published var isGrouping = false
+    /// Real fraction complete (0...1) through the O(n²) duplicate-grouping
+    /// pass — the only part of a scan whose duration isn't already tracked
+    /// by scanned/total, and the one that can visibly run long after the
+    /// hash pass hits 100%.
+    @Published var groupingProgress: Double = 0
 
     /// Hamming distance at or below which two hashes are the same photo.
     private static let duplicateThreshold = 5
@@ -82,6 +87,7 @@ final class LibraryScanner: ObservableObject {
             DispatchQueue.main.async {
                 self.total = assets.count
                 self.scanned = 0
+                self.groupingProgress = 0
             }
 
             let manager = PHImageManager.default()
@@ -132,7 +138,9 @@ final class LibraryScanner: ObservableObject {
             DispatchQueue.main.async { self.isGrouping = true }
 
             let sharpnessByID = Dictionary(uniqueKeysWithValues: items.map { ($0.0.localIdentifier, $0.1.s) })
-            let duplicates = Self.groupDuplicates(items, sharpness: sharpnessByID)
+            let duplicates = Self.groupDuplicates(items, sharpness: sharpnessByID) { fraction in
+                DispatchQueue.main.async { self.groupingProgress = fraction }
+            }
             let similar = Self.groupSimilar(items, sharpness: sharpnessByID)
             let blurry = items
                 .filter { $0.1.s < Self.blurThreshold }
@@ -246,7 +254,8 @@ final class LibraryScanner: ObservableObject {
     /// wherever `shouldMerge` says two indices belong together. O(n²)
     /// on cheap comparisons — fine into the tens of thousands of photos;
     /// the cache keeps the expensive part (image loads) incremental.
-    private static func unionFindClusters(count: Int, shouldMerge: (Int, Int) -> Bool) -> [[Int]] {
+    private static func unionFindClusters(count: Int, onProgress: ((Double) -> Void)? = nil,
+                                          shouldMerge: (Int, Int) -> Bool) -> [[Int]] {
         var parent = Array(0..<count)
         func find(_ x: Int) -> Int {
             var x = x
@@ -262,6 +271,11 @@ final class LibraryScanner: ObservableObject {
                 let ri = find(i), rj = find(j)
                 if ri != rj { parent[ri] = rj }
             }
+            // Reporting every iteration would flood the main queue with
+            // Dispatch work for a progress bar nobody can read that fast.
+            if i % 200 == 0 || i == count - 1 {
+                onProgress?(Double(i + 1) / Double(count))
+            }
         }
 
         var buckets: [Int: [Int]] = [:]
@@ -272,8 +286,9 @@ final class LibraryScanner: ObservableObject {
     }
 
     private static func groupDuplicates(_ items: [(PHAsset, CacheEntry)],
-                                        sharpness: [String: Float]) -> [DuplicateGroup] {
-        let indexClusters = unionFindClusters(count: items.count) { i, j in
+                                        sharpness: [String: Float],
+                                        onProgress: ((Double) -> Void)? = nil) -> [DuplicateGroup] {
+        let indexClusters = unionFindClusters(count: items.count, onProgress: onProgress) { i, j in
             (items[i].1.h ^ items[j].1.h).nonzeroBitCount <= duplicateThreshold
         }
         let memberSets = indexClusters.map { indices in indices.map { items[$0].0 } }

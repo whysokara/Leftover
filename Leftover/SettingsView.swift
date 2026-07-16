@@ -24,7 +24,7 @@ struct SettingsView: View {
                         set: { notifications.setEnabled($0, burstDoneToday: stats.isBurstDoneToday) }
                     )) {
                         HStack(spacing: 12) {
-                            iconBadge("bell.fill", chip: Theme.chipOrange)
+                            IconBadge(icon: "bell", chip: Theme.chipOrange, size: 28)
                             Text("Daily reminder")
                         }
                     }
@@ -56,7 +56,7 @@ struct SettingsView: View {
 
                 Section {
                     HStack(spacing: 12) {
-                        iconBadge("snowflake", chip: Theme.chipBlue)
+                        IconBadge(icon: "snowflake", chip: Theme.chipBlue, size: 28)
                         Text("Freezes ready")
                         Spacer()
                         Text("\(stats.freezes)")
@@ -141,20 +141,10 @@ struct SettingsView: View {
 
     private func trustRow(icon: String, text: String) -> some View {
         HStack(spacing: 12) {
-            iconBadge(icon, chip: Theme.chipTeal)
+            IconBadge(icon: icon, chip: Theme.chipTeal, size: 28)
             Text(text)
         }
         .accessibilityElement(children: .combine)
-    }
-
-    /// Small colored-circle SF Symbol badge — the same language as
-    /// Home's cleanup tiles, so Settings doesn't read as a stock list.
-    private func iconBadge(_ icon: String, chip: Color) -> some View {
-        Image(systemName: icon)
-            .font(.system(size: 13, weight: .bold))
-            .foregroundColor(.white)
-            .frame(width: 28, height: 28)
-            .background(Circle().fill(chip))
     }
 
     private var versionString: String {

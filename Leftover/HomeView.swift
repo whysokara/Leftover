@@ -19,11 +19,9 @@ struct HomeView: View {
 
     let burstDetail: String
     let burstDimmed: Bool
-    let burstPreviewAsset: PHAsset?
 
     let screenshotCount: Int
     let videoCount: Int
-    let timeCapsuleCount: Int
     let duplicateDetail: String
     let similarDetail: String
     let blurryDetail: String
@@ -33,7 +31,6 @@ struct HomeView: View {
     let onSettings: () -> Void
     let onStartBurst: () -> Void
     let onScreenshots: () -> Void
-    let onTimeCapsule: () -> Void
     let onDuplicates: () -> Void
     let onSimilar: () -> Void
     let onBlurry: () -> Void
@@ -53,7 +50,7 @@ struct HomeView: View {
                     .font(Theme.wordmark(34))
                     .foregroundColor(Theme.ink)
                     .cascadeIn(appeared, slot: 1)
-                bentoGrid.cascadeIn(appeared, slot: 2)
+                cleanupList.cascadeIn(appeared, slot: 2)
                 recentStrip.cascadeIn(appeared, slot: 3)
             }
             .padding(.horizontal, 20)
@@ -66,19 +63,6 @@ struct HomeView: View {
 
     private var topBar: some View {
         HStack(spacing: 14) {
-            Button(action: onSettings) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Theme.cream))
-                    .shadow(color: Theme.ink.opacity(0.15), radius: 6, y: 3)
-            }
-            .buttonStyle(ScaleButtonStyle())
-            .accessibilityLabel("Settings")
-
-            Spacer()
-
             if freedBytes > 0 {
                 Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
                     .font(.subheadline.weight(.semibold).monospacedDigit())
@@ -90,7 +74,7 @@ struct HomeView: View {
 
             if streakCount > 0 {
                 HStack(spacing: 4) {
-                    Image(systemName: "flame.fill")
+                    Image(systemName: "flame")
                         .foregroundColor(Theme.cream)
                         .scaleEffect(flameScale)
                     Text("\(streakCount)")
@@ -107,137 +91,104 @@ struct HomeView: View {
                     }
                 }
             }
+
+            Spacer()
+
+            Button(action: onSettings) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Theme.ink)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Theme.surface))
+            }
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Settings")
         }
     }
 
-    // A Bento grid: one hero tile (Memory Burst, photo-backed) and
-    // uniform small tiles for every other engine — the hero alone
-    // carries the size hierarchy, the rest stay equal.
-    private var bentoGrid: some View {
-        Grid(horizontalSpacing: 12, verticalSpacing: 12) {
-            GridRow {
-                heroBurstTile
-                    .gridCellColumns(2)
+    private struct CleanupRow: Identifiable {
+        let id: String
+        let icon: String
+        let chip: Color
+        let title: String
+        let detail: String
+        let dimmed: Bool
+        let action: () -> Void
+    }
+
+    // Memory Burst and Albums always show — one's the daily habit
+    // anchor, the other is plain navigation. Everything else only shows
+    // up when there's something to review (or its status is still
+    // unknown), so a clean library shows a short list, not a busy one.
+    private var middleRows: [CleanupRow] {
+        var rows: [CleanupRow] = []
+        if duplicateDetail != "None" {
+            rows.append(CleanupRow(id: "duplicates", icon: "square.on.square", chip: Theme.chipTeal,
+                                    title: "Duplicates", detail: duplicateDetail, dimmed: false, action: onDuplicates))
+        }
+        if similarDetail != "None" {
+            rows.append(CleanupRow(id: "similar", icon: "square.stack.3d.down.right", chip: Theme.chipPink,
+                                    title: "Similar Shots", detail: similarDetail, dimmed: false, action: onSimilar))
+        }
+        if isLoading || screenshotCount > 0 {
+            rows.append(CleanupRow(id: "screenshots", icon: "camera.viewfinder", chip: Theme.chipBlue,
+                                    title: "Screenshots", detail: countLabel(screenshotCount), dimmed: false,
+                                    action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots.") }))
+        }
+        if blurryDetail != "None" {
+            rows.append(CleanupRow(id: "blurry", icon: "wand.and.rays", chip: Theme.chipYellow,
+                                    title: "Blurry", detail: blurryDetail, dimmed: false, action: onBlurry))
+        }
+        if isLoading || videoCount > 0 {
+            rows.append(CleanupRow(id: "videos", icon: "film", chip: Theme.chipCoral,
+                                    title: "Large Videos", detail: countLabel(videoCount), dimmed: false,
+                                    action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") }))
+        }
+        return rows
+    }
+
+    // A flat list of equal-weight rows — Memory Burst first, then
+    // whichever engines have something to do, then Albums.
+    private var cleanupList: some View {
+        VStack(spacing: 10) {
+            SortRow(icon: "sparkles", chip: Theme.chipOrange,
+                    title: "Memory Burst", detail: burstDetail,
+                    dimmed: burstDimmed, action: onStartBurst)
+
+            if middleRows.isEmpty {
+                allCaughtUpBanner
+            } else {
+                ForEach(middleRows) { row in
+                    SortRow(icon: row.icon, chip: row.chip, title: row.title,
+                            detail: row.detail, dimmed: row.dimmed, action: row.action)
+                }
             }
-            GridRow {
-                smallTile(icon: "square.on.square", chip: Theme.chipTeal,
-                          title: "Duplicates", detail: duplicateDetail,
-                          dimmed: duplicateDetail == "None", action: onDuplicates)
-                smallTile(icon: "square.stack.3d.down.right.fill", chip: Theme.chipPink,
-                          title: "Similar Shots", detail: similarDetail,
-                          dimmed: similarDetail == "None", action: onSimilar)
-            }
-            GridRow {
-                smallTile(icon: "camera.viewfinder", chip: Theme.chipBlue,
-                          title: "Screenshots", detail: countLabel(screenshotCount),
-                          dimmed: screenshotCount == 0,
-                          action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots.") })
-                smallTile(icon: "clock.fill", chip: Theme.chipPurple,
-                          title: "Time Capsule", detail: countLabel(timeCapsuleCount),
-                          dimmed: timeCapsuleCount == 0,
-                          action: timeCapsuleCount > 0 ? onTimeCapsule : { onComingSoon("No old photos from this day.") })
-            }
-            GridRow {
-                smallTile(icon: "wand.and.rays", chip: Theme.chipYellow,
-                          title: "Blurry", detail: blurryDetail,
-                          dimmed: blurryDetail == "None", action: onBlurry)
-                smallTile(icon: "film.fill", chip: Theme.chipCoral,
-                          title: "Large Videos", detail: countLabel(videoCount),
-                          dimmed: videoCount == 0,
-                          action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") })
-            }
-            GridRow {
-                smallTile(icon: "folder.fill", chip: Theme.chipNavy,
-                          title: "Albums", detail: "", dimmed: false, action: onAlbums)
-                    .gridCellColumns(2)
-            }
+
+            SortRow(icon: "folder", chip: Theme.chipNavy,
+                    title: "Albums", detail: "", dimmed: false, action: onAlbums)
         }
     }
 
-    private var heroBurstTile: some View {
-        Button(action: onStartBurst) {
-            ZStack(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(burstDimmed ? Theme.raised : Theme.chipOrange)
-
-                // Always show a photo when one exists — even "done for
-                // today"/dimmed still gets a picture, just muted, instead
-                // of going blank.
-                if let burstPreviewAsset {
-                    PhotoThumbnailView(asset: burstPreviewAsset)
-                        .frame(maxWidth: .infinity, minHeight: 156, maxHeight: 156)
-                        .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                        .blur(radius: 2)
-                        .opacity(burstDimmed ? 0.5 : 1)
-                        .saturation(burstDimmed ? 0.4 : 1)
-                    LinearGradient(colors: [.black.opacity(burstDimmed ? 0.4 : 0.55), .clear],
-                                   startPoint: .bottom, endPoint: .center)
-                        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Spacer(minLength: 0)
-                    Text("Memory Burst")
-                        .font(.system(.title3).weight(.bold))
-                    Text(burstDetail)
-                        .font(.footnote.monospacedDigit())
-                        .opacity(0.85)
-                }
-                .foregroundColor(burstPreviewAsset != nil ? .white : (burstDimmed ? Theme.dim : .white))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(18)
-
-                Image(systemName: "sparkles")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(burstPreviewAsset != nil ? .white : (burstDimmed ? Theme.dim : .white))
-                    .frame(width: 34, height: 34)
-                    .background(Circle().fill(.white.opacity(burstDimmed ? 0.12 : 0.22)))
-                    .padding(14)
+    private var allCaughtUpBanner: some View {
+        HStack(spacing: 14) {
+            LeftoverBuddy(color: Theme.chipTeal, expression: .relieved, size: 40)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("All Caught Up")
+                    .font(.system(.footnote).weight(.semibold))
+                    .foregroundColor(Theme.ink)
+                Text("Nothing to clean up right now.")
+                    .font(.caption2)
+                    .foregroundColor(Theme.dim)
             }
-            .frame(height: 156)
-            .shadow(color: Theme.ink.opacity(0.1), radius: 16, y: 6)
+            Spacer(minLength: 0)
         }
-        .buttonStyle(ScaleButtonStyle())
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Theme.surface)
+        )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Memory Burst, \(burstDetail)")
-    }
-
-    private func smallTile(icon: String, chip: Color, title: String, detail: String,
-                            dimmed: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Circle().fill(dimmed ? Theme.dim.opacity(0.4) : chip))
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(title)
-                        .font(.system(.footnote).weight(.semibold))
-                        .foregroundColor(dimmed ? Theme.dim : Theme.ink)
-                        .lineLimit(1)
-                    if !detail.isEmpty {
-                        Text(detail)
-                            .font(.caption2.monospacedDigit())
-                            .foregroundColor(Theme.dim)
-                            .lineLimit(1)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Theme.surface)
-                    .shadow(color: Theme.ink.opacity(0.05), radius: 8, y: 3)
-            )
-        }
-        .buttonStyle(ScaleButtonStyle())
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(detail.isEmpty ? title : "\(title), \(detail)")
     }
 
     // Bare values on the trailing edge, like the system Settings app.
@@ -288,14 +239,10 @@ struct SortRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: icon)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 40, height: 40)
-                    .background(Circle().fill(dimmed ? Theme.dim.opacity(0.45) : chip))
+                IconBadge(icon: icon, chip: chip, size: 40, dimmed: dimmed)
 
                 Text(title)
-                    .font(.system(.body).weight(.semibold))
+                    .font(.system(.body).weight(.medium))
                     .foregroundColor(dimmed ? Theme.dim : Theme.ink)
                     .lineLimit(1)
 
@@ -309,11 +256,15 @@ struct SortRow: View {
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.caption.weight(.bold))
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(Theme.dim.opacity(dimmed ? 0.4 : 1))
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Theme.surface)
+            )
             .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle())

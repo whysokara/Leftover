@@ -17,7 +17,7 @@
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>UIUserInterfaceStyle</key>
-    <string>Light</string>
+    <string>Dark</string>
     <key>UILaunchScreen</key>
     <dict>
         <key>UIColorName</key>

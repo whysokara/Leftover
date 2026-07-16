@@ -4,7 +4,7 @@ import PhotosUI
 import UIKit
 
 enum SessionSource {
-    case album, burst, screenshots, timeCapsule, blurry
+    case album, burst, screenshots, blurry
 }
 
 /// Where a review session was launched from — exits return here.
@@ -51,13 +51,7 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var isLoadingHome = false
     @State private var screenshotAssets: [PHAsset] = []
-    @State private var timeCapsuleAssets: [PHAsset] = []
     @State private var burstAssets: [PHAsset] = []
-    /// A random burst photo for the Home hero tile — chosen once per
-    /// `loadHomeData()` pass so it's stable during the visit but varies
-    /// from one app open to the next, rather than always showing the
-    /// same photo.
-    @State private var burstPreviewAsset: PHAsset?
     @State private var videoCount = 0
     @State private var recentAssets: [PHAsset] = []
     @StateObject private var libraryScanner = LibraryScanner()
@@ -198,7 +192,7 @@ struct ContentView: View {
                 .zIndex(3)
             }
         }
-        .preferredColorScheme(.light)
+        .preferredColorScheme(.dark)
         .onChange(of: currentIndex) { newIndex in
             if newIndex < photoAssets.count {
                 currentAsset = photoAssets[newIndex]
@@ -311,6 +305,10 @@ struct ContentView: View {
             ScanProgress(scanner: libraryScanner)
             Spacer()
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .edgeSwipeBack {
+            withAnimation(Theme.settle) { showBlurryScan = false }
+        }
     }
 
     func startBlurrySession() {
@@ -355,11 +353,6 @@ struct ContentView: View {
                     .onAppear {
                         pulse = true
                     }
-
-                Text("Clean up your photo library.")
-                    .font(.callout)
-                    .foregroundColor(Theme.dim)
-                    .multilineTextAlignment(.center)
 
                 Text("Swipe right to keep, left to delete.")
                     .font(.footnote)
@@ -439,10 +432,8 @@ struct ContentView: View {
                         ? "Done today"
                         : (burstAssets.isEmpty ? "None" : burstAssets.count.formatted()),
                     burstDimmed: stats.isBurstDoneToday || burstAssets.isEmpty,
-                    burstPreviewAsset: burstPreviewAsset,
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
-                    timeCapsuleCount: timeCapsuleAssets.count,
                     duplicateDetail: scanDetail(count: libraryScanner.duplicateGroups.count),
                     similarDetail: scanDetail(count: libraryScanner.similarGroups.count),
                     blurryDetail: scanDetail(count: libraryScanner.blurryAssets.count),
@@ -451,7 +442,6 @@ struct ContentView: View {
                     onSettings: { showSettings = true },
                     onStartBurst: { startSession(.burst, assets: burstAssets) },
                     onScreenshots: { startSession(.screenshots, assets: screenshotAssets) },
-                    onTimeCapsule: { startSession(.timeCapsule, assets: timeCapsuleAssets) },
                     onDuplicates: {
                         withAnimation(Theme.settle) { showDuplicates = true }
                     },
@@ -585,7 +575,6 @@ struct ContentView: View {
             }
             .background(Theme.stage)
             .navigationTitle("Albums")
-            .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button {
@@ -765,6 +754,7 @@ struct ContentView: View {
             .padding(.top, 8)
             .padding(.bottom, 10)
         }
+        .edgeSwipeBack { endSessionTapped() }
         .alert("Delete \(toBeDeleted.count) Photos?", isPresented: $showExitAlert) {
             Button("Delete \(toBeDeleted.count)", role: .destructive) {
                 deleteMarkedPhotos()
@@ -783,14 +773,20 @@ struct ContentView: View {
         Double(min(max(distance - 24, 0) / 220, 1))
     }
 
+    // Shared by the "End session" button and the edge-swipe-back gesture —
+    // both need the same "confirm if something's marked" behavior.
+    private func endSessionTapped() {
+        if toBeDeleted.isEmpty {
+            withAnimation(Theme.settle) { exitSession() }
+        } else {
+            showExitAlert = true
+        }
+    }
+
     private var reviewTopBar: some View {
         HStack(spacing: 14) {
             BackButton(label: "End session") {
-                if toBeDeleted.isEmpty {
-                    withAnimation(Theme.settle) { exitSession() }
-                } else {
-                    showExitAlert = true
-                }
+                endSessionTapped()
             }
 
             GeometryReader { geo in
@@ -1153,7 +1149,6 @@ struct ContentView: View {
         case .album:       return "Album Reviewed"
         case .burst:       return "Burst Complete"
         case .screenshots: return "Screenshots Reviewed"
-        case .timeCapsule: return "Capsule Reviewed"
         case .blurry:      return "Blurry Photos Reviewed"
         }
     }
@@ -1346,7 +1341,7 @@ struct ContentView: View {
                     case .burst:
                         sessionActive = false
                         withAnimation(Theme.settle) { showBurstComplete = true }
-                    case .screenshots, .timeCapsule, .blurry:
+                    case .screenshots, .blurry:
                         withAnimation(Theme.settle) { returnHome() }
                         loadHomeData()
                     }
@@ -1521,8 +1516,9 @@ struct ContentView: View {
 
             // "This day, years ago" — exactly today's month/day in each
             // prior year, oldest year first so the burst starts furthest
-            // back.
-            var capsule: [PHAsset] = []
+            // back. Feeds Memory Burst only (there's no separate raw
+            // "Time Capsule" view of this anymore — it was the same data
+            // as the burst, just uncapped, which read as a redundant tile).
             var capsuleByYear: [(yearsBack: Int, assets: [PHAsset])] = []
             let calendar = Calendar(identifier: .iso8601)
             let now = Date()
@@ -1538,7 +1534,6 @@ struct ContentView: View {
                 PHAsset.fetchAssets(with: .image, options: options)
                     .enumerateObjects { asset, _, _ in yearAssets.append(asset) }
                 if !yearAssets.isEmpty {
-                    capsule.append(contentsOf: yearAssets)
                     capsuleByYear.append((yearsBack, yearAssets))
                 }
             }
@@ -1578,7 +1573,6 @@ struct ContentView: View {
             }
             if burst.isEmpty { burst = Array(screenshots.prefix(10)) }
             if burst.isEmpty { burst = Array(recent.prefix(10)) }
-            let previewAsset = burst.randomElement()
 
             // Reminder teaser ("3 photos from July 2019") — only when the
             // burst is genuinely from the past.
@@ -1597,9 +1591,7 @@ struct ContentView: View {
                 self.videoCount = videos
                 self.largeVideos = bigOnes.isEmpty ? videoItems : bigOnes
                 self.largeVideosShowingAll = bigOnes.isEmpty
-                self.timeCapsuleAssets = capsule
                 self.burstAssets = burst
-                self.burstPreviewAsset = previewAsset
                 self.recentAssets = recent
                 self.isLoadingHome = false
             }
@@ -1729,7 +1721,9 @@ struct DeleteBlastView: View {
                         RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .strokeBorder(Theme.hairline, lineWidth: 1)
                     )
-                    .shadow(color: .black.opacity(0.5), radius: 12, y: 6)
+                    // A dark drop-shadow disappears against the near-black
+                    // stage — lift the tile with a light glow instead.
+                    .shadow(color: .white.opacity(0.12), radius: 12, y: 5)
                     .rotationEffect(.degrees(swallowed ? fan * 40 + 120 : fan * 7))
                     .scaleEffect(swallowed ? 0.02 : 1)
                     .offset(x: swallowed ? 0 : fan * 26,

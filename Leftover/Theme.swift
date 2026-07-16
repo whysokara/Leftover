@@ -2,9 +2,9 @@
 //  Theme.swift
 //  Leftover
 //
-//  "Theater" design tokens — dark-only. See DESIGN.md.
-//  The app is a private screening room: photos on a near-black warm
-//  stage, floating glass chrome, cream light. Keep/Toss stay semantic.
+//  Dark design tokens (July 2026, sixth iteration — see DESIGN.md).
+//  Near-black canvas, plain SF Pro type, thin outline icons on softly
+//  tinted per-feature accent badges. Keep/Toss stay semantic.
 //
 
 import SwiftUI
@@ -21,37 +21,38 @@ extension Color {
 }
 
 enum Theme {
-    // Color — "Headspace" palette (July 2026): warm cream canvas,
-    // deep navy ink, vibrant orange accent, colorful chips per feature.
-    static let stage    = Color(hex: 0xF7F3EB)   // warm cream canvas
-    static let surface  = Color(hex: 0xFFFFFF)   // white cards
-    static let raised   = Color(hex: 0xF1EAE0)   // soft fill
-    static let ink      = Color(hex: 0x35325E)   // deep navy
-    static let dim      = Color(hex: 0x8D89A8)   // muted lavender-gray
-    static let cream    = Color(hex: 0xF47D31)   // vibrant orange accent
+    // Color — dark canvas, off-white ink, accents retuned to stay
+    // legible (and keep their hue identity) against near-black.
+    static let stage    = Color(hex: 0x121214)   // near-black canvas
+    static let surface  = Color(hex: 0x1C1C1F)   // raised cards/rows
+    static let raised   = Color(hex: 0x242428)   // secondary fill
+    static let ink      = Color(hex: 0xF2F1F5)   // off-white primary text
+    static let dim       = Color(hex: 0x9A9AA2)  // mid-gray secondary text
+    static let cream    = Color(hex: 0xFF9142)   // vibrant orange accent
     static let creamInk = Color.white            // text on accent
-    static let keep     = Color(hex: 0x3EB49E)   // teal
-    static let toss     = Color(hex: 0xF25C54)   // coral
-    static let hairline = Color(hex: 0xE9E2D5)   // sand line
+    static let keep     = Color(hex: 0x4FD1B9)   // teal
+    static let toss     = Color(hex: 0xFF6F68)   // coral
+    static let hairline = Color.white.opacity(0.08) // subtle light-on-dark divider
 
-    // Feature chip colors (Headspace-style variety)
-    static let chipOrange = Color(hex: 0xF47D31)
-    static let chipBlue   = Color(hex: 0x5479F7)
-    static let chipPurple = Color(hex: 0x8A6FD1)
-    static let chipPink   = Color(hex: 0xEF7BAE)
-    static let chipTeal   = Color(hex: 0x3EB49E)
-    static let chipYellow = Color(hex: 0xF2B33D)
-    static let chipCoral  = Color(hex: 0xF25C54)
-    static let chipNavy   = Color(hex: 0x35325E)
+    // Feature chip colors — same hue identity as before, brightened for
+    // contrast on a dark canvas.
+    static let chipOrange = Color(hex: 0xFF9142)
+    static let chipBlue   = Color(hex: 0x6E93FF)
+    static let chipPurple = Color(hex: 0xA48BE8)
+    static let chipPink   = Color(hex: 0xFF93C4)
+    static let chipTeal   = Color(hex: 0x4FD1B9)
+    static let chipYellow = Color(hex: 0xFFC85C)
+    static let chipCoral  = Color(hex: 0xFF6F68)
+    static let chipNavy   = Color(hex: 0x8C97C4)  // was aliased to `ink`,
+    // which is now the (light) text color — needs its own identity.
 
-    // Type — chunky rounded (Headspace vibe): SF Rounded heavy display,
-    // SF Pro for body.
+    // Type — plain SF Pro, no rounded design.
     static func display(_ size: CGFloat = 34) -> Font {
-        .system(size: size, weight: .heavy, design: .rounded)
+        .system(size: size, weight: .bold)
     }
     static func wordmark(_ size: CGFloat = 34) -> Font { display(size) }
-    static let title   = Font.system(size: 22, weight: .bold, design: .rounded)
-    static let button  = Font.system(size: 17, weight: .bold, design: .rounded)
+    static let title   = Font.system(size: 22, weight: .semibold)
+    static let button  = Font.system(size: 17, weight: .semibold)
 
     // Shape
     static let cardRadius: CGFloat = 28
@@ -136,12 +137,35 @@ struct BackButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(Theme.ink)
                 .frame(width: 40, height: 40)
                 .background(.ultraThinMaterial, in: Circle())
         }
         .accessibilityLabel(label)
+    }
+}
+
+/// The shared icon treatment: a thin-weight SF Symbol in its feature's
+/// accent color, sitting on a softly tinted circle of the same color —
+/// replaces the old "bold filled icon on a solid chip" look everywhere
+/// a feature badge appears (Home rows, Settings rows, group-review
+/// accents). `dimmed` mutes both the glyph and the tint for an inactive
+/// row, without changing layout.
+struct IconBadge: View {
+    let icon: String
+    let chip: Color
+    var size: CGFloat = 36
+    var dimmed: Bool = false
+
+    private var tint: Color { dimmed ? Theme.dim : chip }
+
+    var body: some View {
+        Image(systemName: icon)
+            .font(.system(size: size * 0.42, weight: .medium))
+            .foregroundColor(tint)
+            .frame(width: size, height: size)
+            .background(Circle().fill(tint.opacity(dimmed ? 0.14 : 0.16)))
     }
 }
 

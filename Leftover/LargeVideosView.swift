@@ -84,6 +84,7 @@ struct LargeVideosView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.stage)
+        .edgeSwipeBack(action: onClose)
         .overlay(alignment: .bottom) {
             if !marked.isEmpty {
                 Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))") {

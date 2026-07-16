@@ -1,34 +1,34 @@
-# Leftover Design System — Headspace-inspired
+# Leftover Design System — Dark, minimal tool list
 
 ## The vibe
 
-Vibrant and friendly, Headspace-inspired: warm cream canvas (#F7F3EB), deep navy ink (#35325E), chunky SF Rounded heavy headings, white floating cards with soft shadows, capsule buttons in vibrant orange (#F47D31), and every feature color-coded with a filled SF Symbol on its own bright circular chip (`Theme.chipOrange/Blue/Purple/Pink/Teal/Yellow/Coral/Navy`). Decisions stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
+Near-black canvas, plain SF Pro type (no rounded/chunky display face), and thin outline SF Symbols sitting on softly tinted per-feature accent badges (`Theme.chipOrange/Blue/Purple/Pink/Teal/Yellow/Coral/Navy`) rather than bold white icons on solid saturated chips. Home is a flat list of equal-weight rows — no hero tile, no varied tile sizes; every row (Memory Burst included) reads at the same visual weight. Decisions on the swipe screen stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
 
-Personality: quiet, confident, decisive. The photos do the talking; the interface whispers.
+Personality: quiet, confident, understated. The photos do the talking; the interface recedes further than it ever has.
 
-Predecessors (see git history): "Light Table / Darkroom", then the dark "Theater" system — both retired July 2026 for the native look.
-
-**Personality pass (July 2026):** the swipe screen and celebrations always had real motion; the list-style cleanup screens didn't. Home's cleanup list is now a **Bento grid** (varied tile sizes carry hierarchy instead of a uniform row list), Duplicates/Similar Shots show their groups as a **fanned photo stack** rather than a flat scroll, and a small procedurally-drawn mascot (`LeftoverBuddy` — circle, two eyes, one mouth curve, several expressions) appears only in empty/celebration states that had no personality before. No hand-drawn illustration anywhere — a prior "Doodle" sketchy-icon system was tried and rejected as looking cheap, so anything drawn stays clean and geometric.
+Predecessors (see git history): "Light Table / Darkroom", a dark "Theater" system, then a "Headspace" light system with a Bento-grid home and a "personality pass" (mascot, fanned photo stacks, bigger type) — all retired July 2026 for this reference-driven dark redesign, the sixth iteration. The mascot (`LeftoverBuddy`), fanned photo stacks, and cascade-in motion from the Headspace era all carry forward unchanged — only the palette, type, icon treatment, and Home's layout changed this time.
 
 ## Color
 
-**Headspace palette** (July 2026, fifth iteration). `Theme.swift` tokens: `stage`=cream #F7F3EB, `surface`=white, `ink`=navy #35325E, `dim`=#8D89A8, `cream`=orange #F47D31 (accent — name historical), `keep`=teal #3EB49E, `toss`=coral #F25C54, plus the eight `chip*` colors.
+**Dark palette** (July 2026, sixth iteration). `Theme.swift` tokens: `stage`=near-black #121214, `surface`=#1C1C1F (raised cards/rows), `ink`=off-white #F2F1F5, `dim`=#9A9AA2, `cream`=orange #FF9142 (accent — name historical), `keep`=teal #4FD1B9, `toss`=coral #FF6F68, plus the eight `chip*` colors — same hues as the light system, brightened for legibility against near-black.
+
+Icon badges: a soft tint of the feature's accent color (~16% opacity) behind a thin-weight, non-`.fill` SF Symbol in that same accent color — see `IconBadge` in `Theme.swift`. This replaced the old "bold filled icon, white, on a fully saturated chip" look everywhere except the swipe screen's action dock and inline photo-overlay badges (favorite star, keeper/marked badges), which keep their bold/filled treatment since they're status indicators over unpredictable photo content, not feature-identity chips.
 
 Glass: `.ultraThinMaterial` + 1px `hairline` stroke, for the action dock, top-bar pills, and toasts.
 
-**Light enforcement:** `UIUserInterfaceStyle = Light` in Info.plist and `.preferredColorScheme(.light)` on the root view. Tokens are system semantics, so dark support later is a two-line change.
+**Dark enforcement:** `UIUserInterfaceStyle = Dark` in Info.plist and `.preferredColorScheme(.dark)` on the root view — dark-only, not adaptive, the same single-mode enforcement model the app has always used (just flipped). Tokens are system semantics, so light support later is a two-line change.
 
 ## Typography
 
-No bundled fonts. **SF Rounded heavy/bold** for wordmark/display/titles/buttons via `Theme` tokens; SF Pro for body and details.
+No bundled fonts, no rounded design. **Plain SF Pro** for everything via `Theme` tokens.
 
 | Role | Spec |
 |---|---|
-| Wordmark / screen titles | SF Pro Bold, 34pt (`Theme.wordmark` — matches system large titles) |
+| Wordmark / screen titles | SF Pro Bold, 34pt (`Theme.wordmark`/`Theme.display` — matches system large titles) |
 | Display (celebrations) | SF Pro Bold, 30pt (`Theme.display`) |
-| Section titles | `.title2.bold()` (`Theme.title`) |
-| Row titles / body | `.body` semibold / regular |
-| Buttons | `.body.weight(.semibold)` (`Theme.button`) |
+| Section titles | SF Pro Semibold, 22pt (`Theme.title`) |
+| Row titles / body | `.body` medium / regular |
+| Buttons | SF Pro Semibold, 17pt (`Theme.button`) |
 | Row details, counters | `.footnote` / `.subheadline` + `.monospacedDigit()` — bare values, one line, like Settings |
 
 Counters animate with `.contentTransition(.numericText())` — digits roll, never jitter.
@@ -40,7 +40,7 @@ Counters animate with `.contentTransition(.numericText())` — digits roll, neve
 - Photo cards: radius **28**, continuous · Buttons: **16** · Tiles: **16** · Docks/pills/toasts: **capsule**
 - Spacing snaps to a 4pt grid.
 - Tap targets ≥ 44pt (dock buttons are 60×52).
-- One shadow language: black, soft, large radius — cards throw `black.opacity(0.55), radius 22`; floating chrome `0.4, radius 16`.
+- Shadows: dark drop-shadows disappear against the near-black stage, so anything meant to lift *off the app's own background* (not off a photo) uses a light glow instead — e.g. the delete celebration's falling tiles use `white.opacity(0.12)`. Shadows that provide contrast against unpredictable photo content (favorite star, keeper/marked badges) stay dark, since that's still the photo's brightness, not the app canvas.
 
 ## Motion & haptics
 
@@ -81,4 +81,4 @@ No filmstrip, no "N / M" pill — the stack is the queue, the bar is the progres
 
 ## Adoption rules
 
-Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is orange #F47D31. Feature icons are filled SF Symbols, white on their chip color.
+Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is orange #FF9142; the `StageColor` launch-screen color matches `Theme.stage` (#121214) so the launch screen doesn't flash a different tone before the app UI appears. Feature icons use `IconBadge` — thin outline SF Symbols in their accent color, on a soft tint of that same color — except the swipe screen's action dock and inline photo-overlay status badges, which stay bold/filled by design (see Color section above).

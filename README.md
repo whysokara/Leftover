@@ -33,7 +33,7 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 - ✅ **Today's Memory Burst** — a daily bite of "this day, years ago" photos, spread across multiple years (falls back to a screenshot sweep so it never dead-ends)
 - ✅ **Streaks with freezes** — every 7-day streak earns a freeze that auto-bridges a missed day
 - ✅ **Daily reminder** — one gentle nudge, only if you haven't played today
-- ✅ **Screenshot Sweep** and **Time Capsule** cleanup flows
+- ✅ **Screenshot Sweep** cleanup flow
 - ✅ **Duplicates finder** — perceptual-hash groups with the best copy preselected to keep, cached so rescans are instant
 - ✅ **Similar Shots** — rapid-fire series (same moment, seconds apart) grouped with the sharpest shot preselected to keep
 - ✅ **Blurry sweep** — sharpness scoring finds the blur, then you judge each one in the swipe deck
