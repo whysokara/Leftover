@@ -15,6 +15,7 @@
 		4E7A11AB2E340ADF00DB64F9 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E7A11AA2E340ADF00DB64F9 /* Theme.swift */; };
 		4EC0FFEE2E35000100000026 /* LeftoverBuddy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000025 /* LeftoverBuddy.swift */; };
 		4EC0FFEE2E35000100000028 /* EdgeSwipeBack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000027 /* EdgeSwipeBack.swift */; };
+		4EC0FFEE2E3500010000002A /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000029 /* OnboardingView.swift */; };
 		4EC0FFEE2E35000100000002 /* Stats.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000001 /* Stats.swift */; };
 		4EC0FFEE2E35000100000004 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000003 /* NotificationManager.swift */; };
 		4EC0FFEE2E35000100000006 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EC0FFEE2E35000100000005 /* HomeView.swift */; };
@@ -34,6 +35,7 @@
 		4E7A11AA2E340ADF00DB64F9 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E35000100000025 /* LeftoverBuddy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeftoverBuddy.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E35000100000027 /* EdgeSwipeBack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeSwipeBack.swift; sourceTree = "<group>"; };
+		4EC0FFEE2E35000100000029 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E35000100000001 /* Stats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stats.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E35000100000003 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		4EC0FFEE2E35000100000005 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -86,6 +88,7 @@
 				4E7A11AA2E340ADF00DB64F9 /* Theme.swift */,
 				4EC0FFEE2E35000100000025 /* LeftoverBuddy.swift */,
 				4EC0FFEE2E35000100000027 /* EdgeSwipeBack.swift */,
+				4EC0FFEE2E35000100000029 /* OnboardingView.swift */,
 				4E5A2D7F2E33FC5900E458F5 /* Assets.xcassets */,
 				4EC0FFEE2E35000100000023 /* PrivacyInfo.xcprivacy */,
 				4E5A2D812E33FC5900E458F5 /* Preview Content */,
@@ -184,6 +187,7 @@
 				4E7A11AB2E340ADF00DB64F9 /* Theme.swift in Sources */,
 				4EC0FFEE2E35000100000026 /* LeftoverBuddy.swift in Sources */,
 				4EC0FFEE2E35000100000028 /* EdgeSwipeBack.swift in Sources */,
+				4EC0FFEE2E3500010000002A /* OnboardingView.swift in Sources */,
 				4E5A2D7C2E33FC5600E458F5 /* LeftoverApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

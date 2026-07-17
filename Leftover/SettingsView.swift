@@ -12,6 +12,7 @@ import UIKit
 struct SettingsView: View {
     @ObservedObject var notifications: NotificationManager
     @ObservedObject var stats: Stats
+    var onReplayOnboarding: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @State private var showPrivacyPolicy = false
 
@@ -94,6 +95,20 @@ struct SettingsView: View {
                         Spacer()
                         Text(versionString)
                             .foregroundColor(Theme.dim)
+                    }
+
+                    Button {
+                        onReplayOnboarding()
+                    } label: {
+                        HStack(spacing: 12) {
+                            IconBadge(icon: "hand.draw", chip: Theme.chipOrange, size: 28)
+                            Text("How Leftover Works")
+                                .foregroundColor(Theme.ink)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(Theme.dim)
+                        }
                     }
 
                     Button {

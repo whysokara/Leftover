@@ -26,6 +26,7 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 
 ### The swipe
 
+- ✅ **Hands-on onboarding** — practice the swipe on demo cards before the app ever touches your library
 - ✅ **Card stack** — the next photos peek behind the one you're judging
 - ✅ **Swipe left to delete**, right to keep — with real throw physics and edge glows
 - ✅ **Action dock** for tap-first users (delete / undo / favorite / keep) — same logic as the gestures

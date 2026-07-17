@@ -41,6 +41,12 @@ struct ContentView: View {
     // Start button, returning launches auto-dissolve into home.
     @State private var showSplashScreen = true
     private let isFirstLaunch = !UserDefaults.standard.bool(forKey: "hasLaunchedBefore")
+    // Onboarding: first launch (after Start) or replayed from Settings.
+    // While it's up, homeView never appears, so its permission request
+    // waits until the primer has done its job.
+    @State private var showOnboarding = false
+    @State private var pendingOnboardingReplay = false
+    @State private var onboardingInitialStep = 0
 
     @StateObject private var stats = Stats()
     @StateObject private var notifications = NotificationManager()
@@ -80,6 +86,11 @@ struct ContentView: View {
 
             if showSplashScreen {
                 splashScreenView
+            } else if showOnboarding {
+                OnboardingView(initialStep: onboardingInitialStep) {
+                    withAnimation(Theme.settle) { showOnboarding = false }
+                }
+                .transition(pushTransition)
             } else if showAlbumPicker {
                 albumPickerView
                     .transition(pushTransition)
@@ -221,7 +232,21 @@ struct ContentView: View {
             loadHomeData()
         }
         .sheet(isPresented: $showSettings) {
-            SettingsView(notifications: notifications, stats: stats)
+            SettingsView(notifications: notifications, stats: stats,
+                         onReplayOnboarding: {
+                             pendingOnboardingReplay = true
+                             showSettings = false
+                         })
+        }
+        .onChange(of: showSettings) { open in
+            // Start the replay only once the sheet has actually gone,
+            // so the two presentations don't race each other.
+            guard !open, pendingOnboardingReplay else { return }
+            pendingOnboardingReplay = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                onboardingInitialStep = 0
+                withAnimation(Theme.settle) { showOnboarding = true }
+            }
         }
         .onChange(of: libraryScanner.hasScanned) { done in
             // A scan launched from the Blurry row flows straight into
@@ -384,6 +409,9 @@ struct ContentView: View {
                     stats.hasLaunchedBefore = true
                     withAnimation(Theme.settle) {
                         showSplashScreen = false
+                        // First launch flows through onboarding before
+                        // Home (and its permission request) appears.
+                        showOnboarding = true
                     }
                 }
                 .buttonStyle(PrimaryButtonStyle())
@@ -515,6 +543,15 @@ struct ContentView: View {
                             self.openBlurry()
                         } else if args.contains("-LeftoverOpenSettings") {
                             self.showSettings = true
+                        } else if args.contains("-LeftoverShowOnboarding") {
+                            self.onboardingInitialStep = 0
+                            self.showOnboarding = true
+                        } else if args.contains("-LeftoverOnboardingStep2") {
+                            self.onboardingInitialStep = 1
+                            self.showOnboarding = true
+                        } else if args.contains("-LeftoverOnboardingStep3") {
+                            self.onboardingInitialStep = 2
+                            self.showOnboarding = true
                         } else if args.contains("-LeftoverBlastDemo") {
                             // Preview the delete celebration without deleting.
                             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {

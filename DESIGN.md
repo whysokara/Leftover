@@ -1,84 +1,296 @@
-# Leftover Design System — Dark, minimal tool list
+# Leftover Design System — Dark neon, Cover Flow
 
-## The vibe
+The seventh-generation design (July 2026): a near-black stage, one glowing
+outline-card brand mark that runs from the app icon into the app, Cover Flow
+navigation faced with the user's own photos, and physical, spring-driven
+decisions everywhere. Personality: quiet, confident, understated — the photos
+do the talking; the interface recedes.
 
-Near-black canvas, plain SF Pro type (no rounded/chunky display face), and thin outline SF Symbols sitting on softly tinted per-feature accent badges (`Theme.chipOrange/Blue/Purple/Pink/Teal/Yellow/Coral/Navy`) rather than bold white icons on solid saturated chips. Home's navigation is a **Cover Flow carousel** (July 2026, after the iPod-era Music app): one square card per category — Memory Burst, Duplicates, Similar Shots, Screenshots, Blurry, Large Videos, Albums — each faced with a **blurred collage of that category's own content** (2×2 grid of its four newest assets, frosted with `.ultraThinMaterial` + a black 0.42 scrim, white title/count bottom-left, soft white ghost glyph top-right — per the July 2026 PRD; clean-photo faces and plain tinted faces were earlier tried and rolled back for legibility, which the frost+scrim stack solves). Categories with no content yet (pre-scan "Scan" state) fall back to a solid chip face with a dark-ink (`Theme.onChip`) glyph, since white fails WCAG AA on bare mid-tone fills; fewer than four assets fall back to one full-bleed asset, the centered card facing forward, neighbors tilted away in 3D with a glossy floor reflection. The carousel is **endless** — it wraps in both directions, with cards fading out before the wrap point so the loop is seamless — and **adaptive**: categories whose scan/load reports "None" drop out entirely (pre-scan "Scan" and loading "…" states stay; Albums always stays; Memory Burst dims when done today). Labels render only on the front card. Tap the front card to open it, tap a side card to bring it forward, flick to move — snapping follows the flick's projected momentum, capped at 4 cards per flick. Implementation is a custom ZStack + drag (`selectedIndex` + `dragFraction`, `rotation3DEffect`, `Theme.settle` snapping) because the iOS 17 scroll-transition APIs are unavailable at the iOS 16 target; under Reduce Motion the 3D tilt flattens out but the carousel still works. Decisions on the swipe screen stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
+Predecessors (see git history): "Light Table / Darkroom" → dark "Theater" →
+native-system → "Doodle" (rejected: cheap-looking line art) → light
+"Headspace" (cream canvas, Bento grid, personality pass) → the first dark
+minimal pass → this. Carried forward from earlier eras: the `LeftoverBuddy`
+mascot, the cascade-in entrance, the spring/haptic language, and the swipe
+screen's physics.
 
-Personality: quiet, confident, understated. The photos do the talking; the interface recedes further than it ever has.
+## The brand mark
 
-Predecessors (see git history): "Light Table / Darkroom", a dark "Theater" system, then a "Headspace" light system with a Bento-grid home and a "personality pass" (mascot, fanned photo stacks, bigger type) — all retired July 2026 for this reference-driven dark redesign, the sixth iteration. The mascot (`LeftoverBuddy`), fanned photo stacks, and cascade-in motion from the Headspace era all carry forward unchanged — only the palette, type, icon treatment, and Home's layout changed this time.
+The app icon is a single tilted rounded-card **outline** in a neon gradient
+stroke (orange → pink → purple) with a soft glow and one trailing echo — a
+card mid-swipe, drawn as one line, on the dark stage. `NeonCardMark`
+(`Theme.swift`) renders the same mark in SwiftUI and is the only place it
+should come from. It appears exactly three ways:
+
+- **Splash** — headlining above the wordmark (icon → app continuity).
+- **Session complete, nothing marked** — signs off a clean finish.
+- **Scan ring** — the progress arc sweeps the same gradient
+  (`AngularGradient`, chipOrange → chipPink → chipPurple).
+
+It is always decorative (`accessibilityHidden`), always paired with text that
+carries the meaning. Don't scatter it further; scarcity is what keeps it a
+mark.
 
 ## Color
 
-**Dark palette** (July 2026, sixth iteration). `Theme.swift` tokens: `stage`=near-black #121214, `surface`=#1C1C1F (raised cards/rows), `ink`=off-white #F2F1F5, `dim`=#9A9AA2, `cream`=orange #FF9142 (accent — name historical), `keep`=teal #4FD1B9, `toss`=coral #FF6F68, plus the eight `chip*` colors — same hues as the light system, brightened for legibility against near-black. **Text or glyphs sitting on a solid chip fill always use `Theme.onChip` (near-black)** — white on these mid-tone accents measures ≈1.5–2.2:1 and fails WCAG AA; onChip clears 9:1 on every chip.
+`Theme.swift` tokens — never hardcode:
 
-Icon badges: a soft tint of the feature's accent color (~16% opacity) behind a thin-weight, non-`.fill` SF Symbol in that same accent color — see `IconBadge` in `Theme.swift`. This replaced the old "bold filled icon, white, on a fully saturated chip" look everywhere except the swipe screen's action dock and inline photo-overlay badges (favorite star, keeper/marked badges), which keep their bold/filled treatment since they're status indicators over unpredictable photo content, not feature-identity chips.
+| Token | Value | Role |
+|---|---|---|
+| `stage` | #121214 | canvas (matches `StageColor` launch asset) |
+| `surface` | #1C1C1F | raised cards, rows, chips |
+| `raised` | #242428 | secondary fill, dimmed card faces |
+| `ink` | #F2F1F5 | primary text |
+| `dim` | #9A9AA2 | secondary text (≈6.4:1 on stage) |
+| `onChip` | #121214 | **text/glyphs on any bright chip fill** |
+| `cream` | #FF9142 | orange accent (name historical) |
+| `keep` / `toss` | #4FD1B9 / #FF6F68 | decision semantics |
+| `hairline` | white 8% | dividers |
+| `chipOrange/Blue/Purple/Pink/Teal/Yellow/Coral/Navy` | — | per-feature identity |
 
-Glass: `.ultraThinMaterial` + 1px `hairline` stroke, for the action dock, top-bar pills, and toasts.
+**The onChip rule:** white on these mid-tone accents measures ≈1.5–2.2:1 and
+fails WCAG AA; `onChip` clears 9:1 on every chip. Any text or icon-only
+control sitting on a solid chip fill (action dock, solid card faces) uses
+`onChip`. White text is reserved for photo-backed surfaces behind a dark
+scrim.
 
-**Dark enforcement:** `UIUserInterfaceStyle = Dark` in Info.plist and `.preferredColorScheme(.dark)` on the root view — dark-only, not adaptive, the same single-mode enforcement model the app has always used (just flipped). Tokens are system semantics, so light support later is a two-line change.
+Feature identity: Duplicates=teal, Similar Shots=pink, Screenshots=blue,
+Time-related/Burst=orange, Blurry=yellow, Large Videos=coral, Albums=navy,
+Streak flame=cream. Group-review screens carry their chip color as an
+`accent` (card borders, keeper badges, empty-state buddy).
+
+Icon badges (`IconBadge`, Theme.swift): thin non-`.fill` SF Symbol in its
+accent color on a ~16% tint of the same color — used in Settings rows.
+Exceptions that stay bold/filled: the action dock (solid chips, `onChip`
+glyphs) and status badges over photos (favorite star, keeper/marked badges —
+white-backed circles so the cutout glyphs don't read as holes).
+
+Glass: `.ultraThinMaterial` + 1px `hairline` stroke — toasts, "Keep all"
+pill, the collage-face frost.
+
+**Dark enforcement:** `UIUserInterfaceStyle = Dark` + `.preferredColorScheme(.dark)`
+on the root. Dark-only, not adaptive. Asset-catalog `AccentColor` is #FF9142.
 
 ## Typography
 
-No bundled fonts, no rounded design. **Plain SF Pro via Dynamic Type text styles** — the `Theme` tokens map to scaling styles, never fixed point sizes, so accessibility sizes actually work.
+Plain SF Pro via **Dynamic Type text styles only** — `Theme` tokens map to
+scaling styles, never fixed point sizes.
 
 | Role | Spec |
 |---|---|
-| Wordmark / screen titles | `.largeTitle` bold (`Theme.wordmark`/`Theme.display(≥32)`) |
-| Display (celebrations) | `.largeTitle`/`.title` bold (`Theme.display`, bucketed by legacy size) |
+| Wordmark / display | `.largeTitle` bold (`Theme.wordmark`/`display(≥32)`); `.title` bold below 32 |
 | Section titles | `.title2` semibold (`Theme.title`) |
-| Row titles / body | `.body` medium / regular |
 | Buttons | `.body` semibold (`Theme.button`) |
-| Row details, counters | `.footnote` / `.subheadline` + `.monospacedDigit()` — bare values, one line, like Settings |
+| Row titles | `.body` / `.subheadline` medium–semibold |
+| Details, counters, chips | `.footnote`/`.caption` + `.monospacedDigit()` — bare values, one line |
 
-Counters animate with `.contentTransition(.numericText())` — digits roll, never jitter.
+Counters animate with `.contentTransition(.numericText())`. The Home wordmark
+is `lineLimit(1)` + `minimumScaleFactor(0.7)` — it compresses, never wraps.
+Never cap with `.dynamicTypeSize(...)`.
 
-**Dynamic Type:** full range including accessibility sizes. Never cap with `.dynamicTypeSize(...)`.
+## Onboarding
 
-## Shape & space
+Three steps (`OnboardingView`), first launch only (splash Start →
+onboarding → Home), replayable from Settings → About → "How Leftover
+Works". Skippable on steps 1–2; forward-only; progress dots; push
+transitions; no `NeonCardMark` (the mark keeps its three placements).
 
-- Photo cards: radius **28**, continuous · Buttons: **16** · Tiles: **16** · Docks/pills/toasts: **capsule**
-- Spacing snaps to a 4pt grid.
-- Tap targets ≥ 44pt (dock buttons are 60×52).
-- Shadows: dark drop-shadows disappear against the near-black stage, so anything meant to lift *off the app's own background* (not off a photo) uses a light glow instead — e.g. the delete celebration's falling tiles use `white.opacity(0.12)`. Shadows that provide contrast against unpredictable photo content (favorite star, keeper/marked badges) stay dark, since that's still the photo's brightness, not the app canvas.
+1. **Swipe to Decide** — taught by doing: two chip-gradient practice
+   cards with the real swipe physics in miniature (drag, bottom-anchored
+   rotation, edge glows, throw + haptics). Caption prompts left-then-right;
+   two throws auto-advance. A mini trash/check dock drives the same code
+   path — the tap-first and VoiceOver route.
+2. **Your Photos Are Safe** — three `IconBadge` trust rows (confirm-first,
+   30-day Recently Deleted, on-device only), reusing Settings' copy.
+3. **One Permission** — full-access primer ("…find duplicates,
+   screenshots, and blurry shots. Photos never leave your phone.") whose
+   button adapts to live authorization: `notDetermined` → "Allow Photo
+   Access" fires the system dialog; granted/limited (replay) → "Done";
+   denied → "Open Settings" + quiet "Done". Home's own permission request
+   waits naturally, because Home can't appear while onboarding is up.
 
-## Motion & haptics
+## Home (canonical layout)
 
-Springs, not curves. Respect Reduce Motion (`UIAccessibility.isReduceMotionEnabled` → crossfade instead of throw; keep haptics).
+1. **Header** — wordmark left; one 32pt `surface` capsule with freed-space ·
+   dot · flame+streak (only when non-zero); 36pt gear circle in a 44pt hit
+   area. A limited-access banner (+ Manage) appears under the header when
+   photo access is `.limited`.
+2. **Cover Flow carousel** — the navigation. One square card per category
+   (Memory Burst, Duplicates, Similar Shots, Screenshots, Blurry, Large
+   Videos, Albums), seated near the vertical middle of the screen.
+3. **Recent** — a 3-column `LazyVGrid` of the entire library, newest first,
+   square cells, radius 12, 4pt gutters; tapping a cell starts a swipe
+   session at that photo. Sized so about a row and a half shows above the
+   fold.
 
-| Name | Spec | Used for | Haptic |
-|---|---|---|---|
-| Flick | `.spring(response: 0.35, dampingFraction: 0.8)` | Small state pops | — |
-| Settle | `.spring(response: 0.45, dampingFraction: 0.85)` | Screen transitions, progress bar, toast | — |
-| Pop | `.interpolatingSpring(stiffness: 100, damping: 6)` | Heart favorite, celebration glyph, streak flame | `.light` |
-| ThrowOut | `.interactiveSpring(response: 0.3, dampingFraction: 0.72)` | Card leaving the screen | `.rigid` toss / `.soft` keep |
-| StackAdvance | `.spring(response: 0.4, dampingFraction: 0.85)` | Next card promoting to the top | — |
+### The carousel
 
-**The signature moment** is now a sequence: drag tilts the card from its base (`anchor: .bottom`), the matching screen edge glows brighter with drag distance, and on release the card flies off along the throw vector while the next card springs forward from the stack. The edge glow is the only decision indicator — no stamps or badges on the photo itself.
-
-**Supporting motion:** sessions deal their cards up from the bottom with a 70ms stagger; undo flies the card back in from the side it left; screens push in from the trailing edge (crossfade under Reduce Motion); home sections cascade in with a 50ms stagger; dock icons kick to 0.78 scale on press; the splash (ink wordmark on paper) shows on every cold launch — auto-dissolving after 2.4s for returning users — over a paper launch screen (StageColor).
+- **Geometry:** card 210pt (front scales to 1.06, sides 0.88), ±1 neighbor
+  at 216pt with a guaranteed gap (no two cards ever touch), further cards at
+  145pt intervals (offscreen on phones), 28° y-axis tilt, perspective 0.55.
+- **Endless:** wrapped-distance math loops the deck both directions; cards
+  fade out before the wrap distance so the side-swap never shows.
+- **Adaptive:** categories whose detail resolves to "None" drop out;
+  pre-scan "Scan" and loading "…" states stay; Albums always stays; Memory
+  Burst dims (raised-gray face) when done today. Selection resets to the
+  front when the card set changes.
+- **Faces:** a blurred 2×2 collage of the category's four newest assets
+  (`CardPreviews`), frosted with `.ultraThinMaterial` + black 0.42 scrim
+  (0.55 dimmed), white title/count bottom-left, soft white ghost glyph
+  bleeding off the top-right. Fewer than four assets → one full-bleed asset;
+  none → solid chip face with `onChip` glyph and a diagonal light wash.
+  Labels render only on the front card (side slivers would overlap).
+- **Reflection:** each card's face flipped, cropped to 80pt, masked to ~35%
+  fading to clear — the glossy floor.
+- **Interaction:** flick with momentum snapping (capped at 4 cards/flick,
+  light haptic on landing), tap front to open, tap a side card to bring it
+  forward. The ghost glyph parallaxes against the drag and breathes on the
+  front card.
+- **Implementation:** custom ZStack + drag (`selectedIndex`/`dragFraction`,
+  `rotation3DEffect`) — iOS 17 scroll-transition APIs are unavailable at the
+  iOS 16 target. Under Reduce Motion the tilt flattens and
+  parallax/breathing stop; the carousel still works.
 
 ## The swipe screen (canonical layout)
 
-1. Top bar: glass `✕` pill (confirms if marks exist) · 4pt progress bar (cream on hairline) · glass "Keep all" pill.
-2. Counter row: toss count left (`toss`, mono), kept count right (`keep`, mono).
-3. Card stack: top card + 2 peeking behind (scale 0.94/0.88, lift −16/−30, opacity 0.7/0.4).
-4. "Toss N" capsule appears above the dock only when something is marked.
-5. Glass action dock: trash (`toss`) · undo · star (`cream`) · checkmark (`keep`). Dock buttons drive the *same* code path as gestures (`throwCard`).
+1. Top bar: bare `✕` glyph, 44pt hit area (confirms if marks exist) · 4pt
+   progress bar (cream on hairline) · glass "Keep all" pill (44pt).
+2. Counter row: marked count left (`toss`, mono), kept count right (`keep`,
+   mono).
+3. Card stack: top card + 2 peeking (scale 0.94/0.88, lift −16/−30, opacity
+   0.7/0.4). Stack height flexes up to 470pt so short screens never push the
+   dock off.
+4. "Delete {size}" capsule appears above the dock only when something is
+   marked (size only — the counter row already has the count).
+5. Action dock: solid-chip circles (46pt) with `onChip` glyphs — trash
+   (coral) · undo (navy) · star (yellow when favorited) · checkmark (teal).
+   Dock buttons drive the *same* code path as gestures (`throwCard`).
 
-No filmstrip, no "N / M" pill — the stack is the queue, the bar is the progress.
+The signature moment: drag tilts the card from its base, the matching screen
+edge glows with drag distance, release throws the card along its vector while
+the next springs forward. The edge glow is the only decision indicator — no
+stamps. Double-tap favorites (high-priority gesture so the drag can't eat
+it). Undo is multi-level, flying the card back in from the side it left.
+Left-edge swipe goes back on every full-screen list and the swipe screen
+(`edgeSwipeBack`, a real `UIScreenEdgePanGestureRecognizer`).
+
+## The delete flow (one flow, everywhere)
+
+Count and size each appear **exactly once per screen**:
+
+1. Screen buttons show both where nothing else does: "Delete 3 · 148 MB"
+   (Duplicates/Similar/Videos). The mid-session pill shows size only.
+2. Every path confirms once with the same alert: title "Delete N
+   Photos?/Videos?", message "This frees {size}. They'll stay in Recently
+   Deleted for 30 days, so you can still restore them from Photos.",
+   destructive button just **"Delete"**.
+3. End-of-session screen: up to five marked photos fanned like a discard
+   pile, title, one "{n} photos · {size}" line, plain Delete, retention
+   caption. Clean finishes (nothing marked) get the brand mark instead.
+4. Success plays `DeleteBlastView` on every path: thumbnails swallowed by
+   the spotlight, "{n} Deleted", "{size} freed", "In Recently Deleted for 30
+   days". Tap anywhere to skip. Failure is never silent: toast "Couldn't
+   delete. Photos unchanged." with all state kept for retry.
+
+After deleting: albums resume at the next unseen photo (mid-session) or exit
+to where the user came from (end of album); burst flows into Burst Complete;
+screenshots/blurry return Home.
+
+## Group review, videos, scans
+
+- **Duplicates/Similar:** white cards on stage with the mode's accent border
+  and glow; each group is a uniform-size horizontally scrolling photo row
+  (84pt), keeper first with an accent star badge — a fanned overlap was
+  tried twice and hid the photos users need to judge. "Delete Rest"/"Keep
+  All" per group. Marked photos dim with a coral border + trash badge.
+- **Large Videos:** one white list card; 64pt thumbs with play badge and
+  mono duration; date + mono size; whole row toggles marking (spring pop).
+- **Scan progress:** breathing ring, brand-gradient arc, honest two-phase
+  progress (hash pass = first half, match-finding = second half, "Finding
+  matches…" label) — never a frozen 100%.
+
+## The mascot
+
+`LeftoverBuddy` — a procedurally-drawn circle face (two eyes, one mouth
+curve, five expressions). Appears **only** in empty/celebration states:
+group-review and video empty states (`.relieved`), empty album (`.happy`),
+permission denied (`.sleepy`). Never replaces feature iconography; never
+hand-drawn/sketchy. The brand mark takes the "clean finish" slot; buddy keeps
+the "nothing here" slots.
+
+## Motion & haptics
+
+Springs, not curves. Reduce Motion is respected **everywhere**: throws become
+direct commits, pushes become crossfades, cascade offsets flatten, carousel
+tilt/parallax/breathing and the splash pulse all stop; haptics stay.
+
+| Name | Spec | Used for | Haptic |
+|---|---|---|---|
+| Flick | `.spring(0.35, 0.8)` | small state pops, mark toggles | — |
+| Settle | `.spring(0.45, 0.85)` | transitions, progress, toasts, carousel snap | — |
+| Pop | `.interpolatingSpring(100, 6)` | heart, celebration glyph, streak flame | `.light` |
+| ThrowOut | `.interactiveSpring(0.3, 0.72)` | card leaving screen | `.rigid` toss / `.soft` keep |
+| StackAdvance | `.spring(0.4, 0.85)` | next card promoting | — |
+
+Supporting motion: cards deal in from the bottom with a 70ms stagger;
+sections cascade in at 50ms (`cascadeIn`, shared `View` extension); dock
+icons kick to 0.78 on press; carousel snaps with momentum + landing haptic;
+the splash wordmark pulses (gated on Reduce Motion) and auto-dissolves after
+2.4s for returning users.
+
+## Shape, space, shadows
+
+- Cards: radius **28** continuous · buttons **16** · tiles/rows **12–18** ·
+  pills/docks/toasts **capsule**. Spacing on a 4pt grid.
+- Tap targets ≥ **44pt** everywhere (gear and back button pad invisible hit
+  areas around smaller visuals).
+- Shadows on the dark stage are **light glows**, not dark drops (a black
+  shadow vanishes on #121214): celebration tiles use white 0.12, the brand
+  mark glows in its own colors, cards use a lit top-leading gradient edge
+  instead of a flat hairline. Dark shadows remain only where they sit over
+  unpredictable photo content.
 
 ## Voice
 
-**Native Apple vocabulary** (July 2026: "toss" retired). Delete means delete; buttons are Title Case; messages are sentence case; no exclamation marks, no cutesy lines.
+Native Apple vocabulary. Buttons Title Case, messages sentence case, no
+exclamation marks, no cutesy lines. Count and size never repeat on one
+screen.
 
-- Buttons: **"Delete 12"**, **"Keep All"**, **"Delete Rest"**, **"Start"**
-- End states: **"Album Reviewed"**, **"Burst Complete"**, **"No Duplicates"**
-- Alert: **"Delete 12 Photos?"** — Delete / Keep All / Cancel
-- Celebration: **"23 Deleted"** / "148 MB freed"
+- Buttons: **"Delete"** (in confirms), **"Delete 3 · 148 MB"** (screen
+  buttons), **"Delete 148 MB"** (mid-session pill), **"Keep All"**,
+  **"Delete Rest"**, **"Start"**
+- End states: **"Album Reviewed"**, **"Burst Complete"**, **"No
+  Duplicates"**, **"Done for Today"**
+- Alerts: **"Delete 12 Photos?"** + "This frees 148 MB. They'll stay in
+  Recently Deleted for 30 days…"
+- Celebration: **"23 Deleted"** · "148 MB freed" · "In Recently Deleted for
+  30 days"
 - Failure: **"Couldn't delete. Photos unchanged."** (never silent)
 - The freed-space number is only shown once it's real.
 
+## Resilience (designed behavior, not just engineering)
+
+- Sessions with marks pending survive background kills — snapshotted on
+  backgrounding, restored on next launch with "Resumed where you left off."
+- A `PHPhotoLibraryChangeObserver` keeps Home honest when the library
+  changes externally; active sessions are never disturbed.
+- Limited photo access is a first-class state: banner + Manage on Home and
+  the album picker; collages and counts compile from permitted assets only.
+
+## Accessibility (audited July 2026)
+
+Dynamic Type through text styles on every themed font; Reduce Motion
+coverage as above; WCAG AA contrast via the onChip rule and scrimmed photo
+surfaces; 44pt tap targets; VoiceOver labels/hints on every control,
+decorative elements (mascot, brand mark, reflections, watermarks) hidden;
+toasts posted as VoiceOver announcements; the celebration is tappable to
+dismiss with a stated hint.
+
 ## Adoption rules
 
-Style all UI through `Theme` tokens — never hardcode colors, fonts, radii, or curves in views. Glass surfaces always pair `.ultraThinMaterial` with a hairline stroke. Every failure gets a toast. The asset-catalog `AccentColor` is orange #FF9142; the `StageColor` launch-screen color matches `Theme.stage` (#121214) so the launch screen doesn't flash a different tone before the app UI appears. Feature icons use `IconBadge` — thin outline SF Symbols in their accent color, on a soft tint of that same color — except the swipe screen's action dock and inline photo-overlay status badges, which stay bold/filled by design (see Color section above).
+Style all UI through `Theme` tokens — never hardcode colors, fonts, radii,
+or curves in views. New screens: state + computed view in ContentView, push
+transition, `cascadeIn` entrance, `BackButton` + `edgeSwipeBack` to exit,
+every failure gets a toast. Deletes go through the one delete flow above —
+batch `performChanges`, confirm once, celebrate once. The brand mark comes
+only from `NeonCardMark`; the icon and `StageColor`/`AccentColor` assets stay
+in sync with `Theme.stage`/`Theme.cream`.
