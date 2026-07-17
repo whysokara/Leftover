@@ -53,7 +53,6 @@ struct HomeView: View {
     let isLoading: Bool
     let isLimitedAccess: Bool
     let healthScore: HealthScore
-    let trophyCount: Int
 
     let onHealth: () -> Void
     let onTrophies: () -> Void
@@ -141,9 +140,7 @@ struct HomeView: View {
                     statsRow
                 }
 
-                if trophyCount > 0 {
-                    trophyChip
-                }
+                trophyChip
 
                 healthChip
             }
@@ -211,26 +208,18 @@ struct HomeView: View {
         .accessibilityHint("Shows what's affecting your score")
     }
 
-    /// Trophy count, in the header slot the streak flame used to occupy.
+    /// Bare tap target to the trophy shelf, in the header slot the
+    /// streak flame used to occupy — icon only, no count.
     private var trophyChip: some View {
         Button(action: onTrophies) {
-            HStack(spacing: 3) {
-                Image(systemName: "trophy.fill")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Theme.chipYellow)
-                Text("\(trophyCount)")
-                    .font(.footnote.weight(.semibold).monospacedDigit())
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .contentTransition(.numericText())
-                    .foregroundColor(Theme.ink)
-            }
-            .frame(height: 44)
-            .contentShape(Rectangle())
+            Image(systemName: "trophy.fill")
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(Theme.chipYellow)
+                .frame(height: 44)
+                .contentShape(Rectangle())
         }
         .buttonStyle(ScaleButtonStyle())
-        .animation(Theme.settle, value: trophyCount)
-        .accessibilityLabel("\(trophyCount) trophies earned")
+        .accessibilityLabel("Trophies")
         .accessibilityHint("Opens your trophy shelf")
     }
 
@@ -275,6 +264,7 @@ struct HomeView: View {
         let chip: Color
         let title: String
         let detail: String
+        let sizeLabel: String
         let dimmed: Bool
         let previewAssets: [PHAsset]
         let action: () -> Void
@@ -287,27 +277,27 @@ struct HomeView: View {
     private var cards: [CoverCard] {
         let all = [
             CoverCard(id: "burst", icon: "sparkles", chip: Theme.chipOrange,
-                      title: "Memory Burst", detail: burstDetail,
+                      title: "Memory Burst", detail: burstDetail, sizeLabel: "",
                       dimmed: burstDimmed, previewAssets: previews.burst, action: onStartBurst),
             CoverCard(id: "duplicates", icon: "square.on.square", chip: Theme.chipTeal,
-                      title: "Duplicates", detail: scopeDetail(duplicateDetail, duplicateBytes),
+                      title: "Duplicates", detail: duplicateDetail, sizeLabel: sizeLabel(duplicateBytes),
                       dimmed: false, previewAssets: previews.duplicates, action: onDuplicates),
             CoverCard(id: "similar", icon: "square.stack.3d.down.right", chip: Theme.chipPink,
-                      title: "Similar Shots", detail: scopeDetail(similarDetail, similarBytes),
+                      title: "Similar Shots", detail: similarDetail, sizeLabel: sizeLabel(similarBytes),
                       dimmed: false, previewAssets: previews.similar, action: onSimilar),
             CoverCard(id: "screenshots", icon: "camera.viewfinder", chip: Theme.chipBlue,
-                      title: "Screenshots", detail: scopeDetail(countLabel(screenshotCount), screenshotBytes),
+                      title: "Screenshots", detail: countLabel(screenshotCount), sizeLabel: sizeLabel(screenshotBytes),
                       dimmed: false, previewAssets: previews.screenshots,
                       action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots.") }),
             CoverCard(id: "blurry", icon: "wand.and.rays", chip: Theme.chipYellow,
-                      title: "Blurry", detail: scopeDetail(blurryDetail, blurryBytes),
+                      title: "Blurry", detail: blurryDetail, sizeLabel: sizeLabel(blurryBytes),
                       dimmed: false, previewAssets: previews.blurry, action: onBlurry),
             CoverCard(id: "videos", icon: "film", chip: Theme.chipCoral,
-                      title: "Large Videos", detail: scopeDetail(countLabel(videoCount), videoBytes),
+                      title: "Large Videos", detail: countLabel(videoCount), sizeLabel: sizeLabel(videoBytes),
                       dimmed: false, previewAssets: previews.videos,
                       action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") }),
             CoverCard(id: "albums", icon: "folder", chip: Theme.chipNavy,
-                      title: "Albums", detail: "",
+                      title: "Albums", detail: "", sizeLabel: "",
                       dimmed: false, previewAssets: previews.albums, action: onAlbums),
         ]
         return all.filter { $0.detail != "None" }
@@ -420,7 +410,11 @@ struct HomeView: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(card.detail.isEmpty ? card.title : "\(card.title), \(card.detail)")
+        .accessibilityLabel({
+            var label = card.detail.isEmpty ? card.title : "\(card.title), \(card.detail)"
+            if !card.sizeLabel.isEmpty { label += ", frees \(card.sizeLabel)" }
+            return label
+        }())
         .accessibilityAddTraits(.isButton)
         .accessibilityHint(index == selectedIndex ? "Opens \(card.title)" : "Brings \(card.title) to the front")
     }
@@ -495,6 +489,17 @@ struct HomeView: View {
                            value: glyphBreath)
                 .offset(x: cardSize * 0.36 - parallax * 16, y: -cardSize * 0.26)
         }
+        .overlay(alignment: .bottomTrailing) {
+            if !card.sizeLabel.isEmpty {
+                Text(card.sizeLabel)
+                    .font(.caption2.weight(.medium).monospacedDigit())
+                    .foregroundColor(card.dimmed
+                                     ? Theme.dim
+                                     : (photoBacked ? .white.opacity(0.85) : Theme.onChip.opacity(0.8)))
+                    .padding(14)
+                    .opacity(labelOpacity)
+            }
+        }
         .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .overlay(
             // A lit top-leading edge instead of a flat hairline.
@@ -563,12 +568,11 @@ struct HomeView: View {
         return count.formatted()
     }
 
-    /// Appends the category's clearing scope to its count — "132 ·
-    /// frees 1.2 GB" — once a real size is known. Placeholder states
-    /// ("Scan", "None", "…") pass through untouched.
-    private func scopeDetail(_ base: String, _ bytes: Int64) -> String {
-        guard bytes > 0, base != "Scan", base != "None", base != "…" else { return base }
-        return "\(base) · frees \(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))"
+    /// The clearing scope for a card's bottom-right corner — just the
+    /// size, once a real one is known. Empty hides the label entirely.
+    private func sizeLabel(_ bytes: Int64) -> String {
+        guard bytes > 0 else { return "" }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     private var recentStrip: some View {

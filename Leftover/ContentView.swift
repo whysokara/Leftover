@@ -538,7 +538,6 @@ struct ContentView: View {
                     isLoading: isLoadingHome,
                     isLimitedAccess: photoAuthStatus == .limited,
                     healthScore: healthScore,
-                    trophyCount: stats.achievedMilestones.count,
                     onHealth: { showHealth = true },
                     onTrophies: { showTrophies = true },
                     onSettings: { showSettings = true },
