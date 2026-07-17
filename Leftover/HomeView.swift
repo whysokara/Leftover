@@ -19,6 +19,19 @@ import SwiftUI
 import Photos
 import UIKit
 
+/// Up to four recent assets per category, for the blurred collage card
+/// faces. Empty arrays fall back to the solid icon face (e.g. the
+/// pre-scan "Scan" state, where no matches exist yet).
+struct CardPreviews {
+    var burst: [PHAsset] = []
+    var duplicates: [PHAsset] = []
+    var similar: [PHAsset] = []
+    var screenshots: [PHAsset] = []
+    var blurry: [PHAsset] = []
+    var videos: [PHAsset] = []
+    var albums: [PHAsset] = []
+}
+
 struct HomeView: View {
     let freedBytes: Int64
     let streakCount: Int
@@ -26,6 +39,7 @@ struct HomeView: View {
 
     let burstDetail: String
     let burstDimmed: Bool
+    let previews: CardPreviews
 
     let screenshotCount: Int
     let videoCount: Int
@@ -99,8 +113,13 @@ struct HomeView: View {
             Text("Leftover")
                 .font(Theme.wordmark(34))
                 .foregroundColor(Theme.ink)
+                // Never wrap — compress slightly instead when Dynamic
+                // Type or the stat chips squeeze the row.
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .layoutPriority(1)
 
-            Spacer()
+            Spacer(minLength: 8)
 
             if freedBytes > 0 || streakCount > 0 {
                 statsRow
@@ -121,11 +140,10 @@ struct HomeView: View {
         }
     }
 
-    // Stats as capsule chips at the same height as the gear circle, so
-    // the trailing cluster reads as one deliberate control group rather
-    // than loose text floating in the header.
+    // Both stats share one compact capsule — two separate chips crowded
+    // the wordmark off its line.
     private var statsRow: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             if freedBytes > 0 {
                 Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
                     .font(.footnote.weight(.semibold).monospacedDigit())
@@ -134,14 +152,17 @@ struct HomeView: View {
                     .contentTransition(.numericText())
                     .animation(Theme.settle, value: freedBytes)
                     .foregroundColor(Theme.dim)
-                    .padding(.horizontal, 12)
-                    .frame(height: 36)
-                    .background(Capsule().fill(Theme.surface))
                     .accessibilityLabel("Freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file)) so far")
             }
 
+            if freedBytes > 0 && streakCount > 0 {
+                Circle()
+                    .fill(Theme.dim.opacity(0.5))
+                    .frame(width: 3, height: 3)
+            }
+
             if streakCount > 0 {
-                HStack(spacing: 4) {
+                HStack(spacing: 3) {
                     Image(systemName: "flame")
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(Theme.cream)
@@ -150,9 +171,6 @@ struct HomeView: View {
                         .font(.footnote.weight(.semibold).monospacedDigit())
                         .foregroundColor(Theme.ink)
                 }
-                .padding(.horizontal, 12)
-                .frame(height: 36)
-                .background(Capsule().fill(Theme.surface))
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("\(streakCount) day streak")
                 .onAppear {
@@ -164,6 +182,9 @@ struct HomeView: View {
                 }
             }
         }
+        .padding(.horizontal, 10)
+        .frame(height: 32)
+        .background(Capsule().fill(Theme.surface))
     }
 
     // MARK: - Cover Flow
@@ -194,6 +215,7 @@ struct HomeView: View {
         let title: String
         let detail: String
         let dimmed: Bool
+        let previewAssets: [PHAsset]
         let action: () -> Void
     }
 
@@ -205,27 +227,27 @@ struct HomeView: View {
         let all = [
             CoverCard(id: "burst", icon: "sparkles", chip: Theme.chipOrange,
                       title: "Memory Burst", detail: burstDetail,
-                      dimmed: burstDimmed, action: onStartBurst),
+                      dimmed: burstDimmed, previewAssets: previews.burst, action: onStartBurst),
             CoverCard(id: "duplicates", icon: "square.on.square", chip: Theme.chipTeal,
                       title: "Duplicates", detail: duplicateDetail,
-                      dimmed: false, action: onDuplicates),
+                      dimmed: false, previewAssets: previews.duplicates, action: onDuplicates),
             CoverCard(id: "similar", icon: "square.stack.3d.down.right", chip: Theme.chipPink,
                       title: "Similar Shots", detail: similarDetail,
-                      dimmed: false, action: onSimilar),
+                      dimmed: false, previewAssets: previews.similar, action: onSimilar),
             CoverCard(id: "screenshots", icon: "camera.viewfinder", chip: Theme.chipBlue,
                       title: "Screenshots", detail: countLabel(screenshotCount),
-                      dimmed: false,
+                      dimmed: false, previewAssets: previews.screenshots,
                       action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots.") }),
             CoverCard(id: "blurry", icon: "wand.and.rays", chip: Theme.chipYellow,
                       title: "Blurry", detail: blurryDetail,
-                      dimmed: false, action: onBlurry),
+                      dimmed: false, previewAssets: previews.blurry, action: onBlurry),
             CoverCard(id: "videos", icon: "film", chip: Theme.chipCoral,
                       title: "Large Videos", detail: countLabel(videoCount),
-                      dimmed: false,
+                      dimmed: false, previewAssets: previews.videos,
                       action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") }),
             CoverCard(id: "albums", icon: "folder", chip: Theme.chipNavy,
                       title: "Albums", detail: "",
-                      dimmed: false, action: onAlbums),
+                      dimmed: false, previewAssets: previews.albums, action: onAlbums),
         ]
         return all.filter { $0.detail != "None" }
     }
@@ -344,43 +366,40 @@ struct HomeView: View {
 
     private func cardFace(_ card: CoverCard, labelOpacity: Double = 1,
                           parallax: CGFloat = 0, breathing: Bool = false) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            // Chip color with a diagonal light: brighter top-leading,
-            // deeper bottom-trailing. Done as a white→black wash over the
-            // solid chip so every chip gets the same lighting for free.
-            RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                .fill(card.dimmed ? Theme.raised : card.chip)
-                // Watermark: one huge copy of the glyph bleeding off the
-                // top-right corner, cropped by the card — composition,
-                // not decoration. It parallaxes gently against the drag
-                // and breathes on the front card. As an overlay it can
-                // never disturb the card's own layout.
-                .overlay(alignment: .topTrailing) {
-                    Image(systemName: card.icon)
-                        .font(.system(size: 190, weight: .bold))
-                        .foregroundColor(Theme.onChip.opacity(card.dimmed ? 0.06 : 0.12))
-                        .rotationEffect(.degrees(-8))
-                        .scaleEffect(breathing && glyphBreath ? 1.05 : 1, anchor: .center)
-                        .animation(breathing
-                                   ? .easeInOut(duration: 2.4).repeatForever(autoreverses: true)
-                                   : .default,
-                                   value: glyphBreath)
-                        .offset(x: cardSize * 0.36 - parallax * 16, y: -cardSize * 0.26)
+        // Photo-backed: a dimmed, frosted collage of the category's own
+        // content — context at a glance. No content yet (pre-scan) →
+        // solid chip face.
+        let photoBacked = !card.previewAssets.isEmpty
+
+        return ZStack(alignment: .bottomLeading) {
+            Group {
+                if photoBacked {
+                    previewCollage(card.previewAssets)
+                        .saturation(card.dimmed ? 0.4 : 1)
+                        // Legibility stack: system frost + dark scrim.
+                        .overlay(Rectangle().fill(.ultraThinMaterial))
+                        .overlay(Color.black.opacity(card.dimmed ? 0.55 : 0.42))
+                } else {
+                    RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
+                        .fill(card.dimmed ? Theme.raised : card.chip)
+                    if !card.dimmed {
+                        LinearGradient(colors: [.white.opacity(0.30), .clear, .black.opacity(0.22)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    }
                 }
-            if !card.dimmed {
-                LinearGradient(colors: [.white.opacity(0.30), .clear, .black.opacity(0.22)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
             }
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(card.title)
                     .font(.system(.subheadline).weight(.semibold))
-                    .foregroundColor(card.dimmed ? Theme.dim : Theme.onChip)
+                    .foregroundColor(card.dimmed ? Theme.dim : (photoBacked ? .white : Theme.onChip))
                     .lineLimit(1)
                 if !card.detail.isEmpty {
                     Text(card.detail)
                         .font(.caption.monospacedDigit())
-                        .foregroundColor(card.dimmed ? Theme.dim : Theme.onChip.opacity(0.8))
+                        .foregroundColor(card.dimmed
+                                         ? Theme.dim
+                                         : (photoBacked ? .white.opacity(0.85) : Theme.onChip.opacity(0.8)))
                         .lineLimit(1)
                 }
             }
@@ -388,10 +407,28 @@ struct HomeView: View {
             .opacity(labelOpacity)
         }
         .frame(width: cardSize, height: cardSize)
+        // Watermark: one huge copy of the glyph bleeding off the
+        // top-right corner — soft white ghost over collages, dark ink
+        // over solid chips. It parallaxes gently against the drag and
+        // breathes on the front card. As an overlay it can never
+        // disturb the card's own layout.
+        .overlay(alignment: .topTrailing) {
+            Image(systemName: card.icon)
+                .font(.system(size: 190, weight: .bold))
+                .foregroundColor(photoBacked
+                                 ? .white.opacity(card.dimmed ? 0.10 : 0.22)
+                                 : Theme.onChip.opacity(card.dimmed ? 0.06 : 0.12))
+                .rotationEffect(.degrees(-8))
+                .scaleEffect(breathing && glyphBreath ? 1.05 : 1, anchor: .center)
+                .animation(breathing
+                           ? .easeInOut(duration: 2.4).repeatForever(autoreverses: true)
+                           : .default,
+                           value: glyphBreath)
+                .offset(x: cardSize * 0.36 - parallax * 16, y: -cardSize * 0.26)
+        }
         .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .overlay(
-            // A lit top-leading edge instead of a flat hairline — the
-            // same light source as the gradient wash.
+            // A lit top-leading edge instead of a flat hairline.
             RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
                 .strokeBorder(
                     LinearGradient(colors: [.white.opacity(card.dimmed ? 0.10 : 0.38),
@@ -399,6 +436,35 @@ struct HomeView: View {
                                    startPoint: .topLeading, endPoint: .bottomTrailing),
                     lineWidth: 1)
         )
+    }
+
+    /// 2×2 collage for four-plus assets; fewer fall back to one
+    /// full-bleed asset (PRD fallback state).
+    @ViewBuilder
+    private func previewCollage(_ assets: [PHAsset]) -> some View {
+        if assets.count >= 4 {
+            let cell = (cardSize - 2) / 2
+            VStack(spacing: 2) {
+                HStack(spacing: 2) {
+                    collageCell(assets[0], cell)
+                    collageCell(assets[1], cell)
+                }
+                HStack(spacing: 2) {
+                    collageCell(assets[2], cell)
+                    collageCell(assets[3], cell)
+                }
+            }
+        } else {
+            PhotoThumbnailView(asset: assets[0])
+                .frame(width: cardSize, height: cardSize)
+                .clipped()
+        }
+    }
+
+    private func collageCell(_ asset: PHAsset, _ size: CGFloat) -> some View {
+        PhotoThumbnailView(asset: asset)
+            .frame(width: size, height: size)
+            .clipped()
     }
 
     private var carouselDrag: some Gesture {

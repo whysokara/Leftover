@@ -136,7 +136,8 @@ struct QuietButtonStyle: ButtonStyle {
     }
 }
 
-/// The glass "xmark" circle used to exit every full-screen list/session.
+/// The bare "xmark" used to exit every full-screen list/session — no
+/// backing shape, just the glyph with a full 44pt hit area.
 struct BackButton: View {
     var label: String = "Back to home"
     let action: () -> Void
@@ -144,10 +145,10 @@ struct BackButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(Theme.ink)
                 .frame(width: 44, height: 44)
-                .background(.ultraThinMaterial, in: Circle())
+                .contentShape(Rectangle())
         }
         .accessibilityLabel(label)
     }

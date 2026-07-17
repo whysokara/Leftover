@@ -450,6 +450,15 @@ struct ContentView: View {
                         ? "Done today"
                         : (burstAssets.isEmpty ? "None" : burstAssets.count.formatted()),
                     burstDimmed: stats.isBurstDoneToday || burstAssets.isEmpty,
+                    previews: CardPreviews(
+                        burst: Array(burstAssets.prefix(4)),
+                        duplicates: Array(libraryScanner.duplicateGroups.prefix(2).flatMap(\.assets).prefix(4)),
+                        similar: Array(libraryScanner.similarGroups.prefix(2).flatMap(\.assets).prefix(4)),
+                        screenshots: Array(screenshotAssets.prefix(4)),
+                        blurry: Array(libraryScanner.blurryAssets.prefix(4)),
+                        videos: Array(largeVideos.prefix(4)).map(\.asset),
+                        albums: Array(recentAssets.prefix(4))
+                    ),
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
                     duplicateDetail: scanDetail(count: libraryScanner.duplicateGroups.count),
