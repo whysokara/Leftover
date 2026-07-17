@@ -317,9 +317,12 @@ struct HomeView: View {
         .contentShape(Rectangle())
         .gesture(carouselDrag)
         // Seats the carousel near the vertical middle and leaves only
-        // about a row and a half of the Recent grid above the fold.
-        .padding(.top, 88)
-        .padding(.bottom, 62)
+        // about a row and a half of the Recent grid above the fold. The
+        // top gap is smaller than the bottom because the floor reflection
+        // already weights the carousel visually downward — an even split
+        // read as a dead band under the header.
+        .padding(.top, 48)
+        .padding(.bottom, 56)
         // The card set can shrink when a scan/load reports "None" —
         // snap back to the front so selectedIndex always names a real
         // card (the tap handler and wrap math both depend on it).
