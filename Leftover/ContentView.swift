@@ -773,7 +773,7 @@ struct ContentView: View {
         }
         .edgeSwipeBack { endSessionTapped() }
         .alert("Delete \(toBeDeleted.count) Photos?", isPresented: $showExitAlert) {
-            Button("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))", role: .destructive) {
+            Button("Delete", role: .destructive) {
                 deleteMarkedPhotos()
             }
             Button("Keep All") {
@@ -781,16 +781,15 @@ struct ContentView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
+            Text("This frees \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)). They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
         }
         .alert("Delete \(toBeDeleted.count) Photos?", isPresented: $showPillConfirm) {
-            Button("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))",
-                   role: .destructive) {
+            Button("Delete", role: .destructive) {
                 deleteMarkedPhotos()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
+            Text("This frees \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)). They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
         }
         .onAppear {
             DispatchQueue.main.async { dealtIn = true }
@@ -1006,7 +1005,8 @@ struct ContentView: View {
             // unguarded destructive tap in the app.
             showPillConfirm = true
         } label: {
-            Text("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
+            // Size only — the counter row above already shows the count.
+            Text("Delete \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
                 .font(.subheadline.weight(.semibold))
                 .contentTransition(.numericText())
                 .foregroundColor(.white)
@@ -1280,15 +1280,23 @@ struct ContentView: View {
                 .padding(.horizontal)
                 .padding(.top, 8)
             } else {
+                // The condemned, fanned out — the screen was bare text
+                // before, and showing the actual photos both fills it and
+                // makes the decision concrete.
+                markedPreviewFan
+                    .padding(.bottom, 8)
+
                 Text(sessionEndTitle)
                     .font(Theme.title)
                     .foregroundColor(Theme.ink)
 
-                Text("\(toBeDeleted.count) selected to delete.")
-                    .font(.subheadline)
+                // Count and size live here, once — the button below is
+                // just the verb.
+                Text("\(toBeDeleted.count) photo\(toBeDeleted.count == 1 ? "" : "s") · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
+                    .font(.subheadline.monospacedDigit())
                     .foregroundColor(Theme.dim)
 
-                Button("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))") {
+                Button("Delete") {
                     deleteMarkedPhotos()
                 }
                 .buttonStyle(TossButtonStyle())
@@ -1327,6 +1335,31 @@ struct ContentView: View {
         .padding()
     }
 
+
+    /// Up to five of the marked photos, fanned like a discard pile.
+    /// The subtitle carries the exact count, so no "+N" badge here.
+    private var markedPreviewFan: some View {
+        let preview = Array(toBeDeleted.prefix(5))
+        let mid = Double(preview.count - 1) / 2
+        return ZStack {
+            ForEach(Array(preview.enumerated()), id: \.element.localIdentifier) { index, asset in
+                let fan = Double(index) - mid
+                PhotoThumbnailView(asset: asset)
+                    .frame(width: 96, height: 96)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(Theme.hairline, lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.4), radius: 10, y: 5)
+                    .rotationEffect(.degrees(fan * 6))
+                    .offset(x: fan * 46, y: abs(fan) * 6)
+                    .zIndex(-abs(fan))
+            }
+        }
+        .frame(height: 120)
+        .accessibilityHidden(true) // decorative; the text carries the info
+    }
 
     func toggleFavorite(_ asset: PHAsset) {
         let wasFavorite = asset.isFavorite

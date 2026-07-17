@@ -74,14 +74,10 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                topBar.cascadeIn(appeared, slot: 0)
+                header.cascadeIn(appeared, slot: 0)
                 if isLimitedAccess {
                     limitedAccessBanner.cascadeIn(appeared, slot: 1)
                 }
-                Text("Leftover")
-                    .font(Theme.wordmark(34))
-                    .foregroundColor(Theme.ink)
-                    .cascadeIn(appeared, slot: 1)
                 coverFlow.cascadeIn(appeared, slot: 2)
                 recentStrip.cascadeIn(appeared, slot: 3)
             }
@@ -96,11 +92,45 @@ struct HomeView: View {
         }
     }
 
-    private var topBar: some View {
+    // Wordmark leads the page; the stats sit on the trailing side,
+    // tucked in next to the settings gear.
+    private var header: some View {
+        HStack(spacing: 12) {
+            Text("Leftover")
+                .font(Theme.wordmark(34))
+                .foregroundColor(Theme.ink)
+
+            Spacer()
+
+            if freedBytes > 0 || streakCount > 0 {
+                statsRow
+            }
+
+            Button(action: onSettings) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(Theme.ink)
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Theme.surface))
+                    // Same 36pt visual, HIG-minimum 44pt hit area.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(ScaleButtonStyle())
+            .accessibilityLabel("Settings")
+        }
+    }
+
+    private var statsRow: some View {
         HStack(spacing: 14) {
             if freedBytes > 0 {
+                // Bare value, one line — "freed" spelled out wrapped
+                // awkwardly next to the gear; the a11y label keeps the
+                // full meaning.
                 Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
                     .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .fixedSize()
                     .contentTransition(.numericText())
                     .animation(Theme.settle, value: freedBytes)
                     .foregroundColor(Theme.dim)
@@ -126,21 +156,6 @@ struct HomeView: View {
                     }
                 }
             }
-
-            Spacer()
-
-            Button(action: onSettings) {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(Theme.ink)
-                    .frame(width: 36, height: 36)
-                    .background(Circle().fill(Theme.surface))
-                    // Same 36pt visual, HIG-minimum 44pt hit area.
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(ScaleButtonStyle())
-            .accessibilityLabel("Settings")
         }
     }
 

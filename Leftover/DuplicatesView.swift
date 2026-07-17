@@ -116,12 +116,12 @@ struct GroupReviewView: View {
         // Same confirm step as the swipe screen — every delete in the
         // app asks once, shows the size, and notes the 30-day safety net.
         .alert("Delete \(marked.count) Photos?", isPresented: $showDeleteConfirm) {
-            Button("Delete \(marked.count) · \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file))", role: .destructive) {
+            Button("Delete", role: .destructive) {
                 onToss(markedAssets, markedBytes)
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
+            Text("This frees \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file)). They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
         }
         .animation(Theme.settle, value: marked.isEmpty)
         .onAppear {
