@@ -91,7 +91,7 @@ struct SettingsView: View {
                             Text("Trophies")
                                 .foregroundColor(Theme.ink)
                             Spacer()
-                            Text("\(stats.achievedMilestones.count) of 6")
+                            Text("\(stats.achievedMilestones.count) of \(TrophyShelfView.badges.count)")
                                 .font(.footnote.monospacedDigit())
                                 .foregroundColor(Theme.dim)
                             Image(systemName: "chevron.right")

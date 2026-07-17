@@ -111,9 +111,10 @@ transitions; no `NeonCardMark` (the mark keeps its three placements).
 ## Home (canonical layout)
 
 1. **Header** — wordmark left; bare freed-space stat (only when non-zero),
-   the health score ring+number chip, then a 36pt gear circle in a 44pt hit
-   area — no capsule chrome. A limited-access banner (+ Manage) appears
-   under the header when photo access is `.limited`.
+   a trophy count chip (only once a trophy's earned), the health score as a
+   tiny linear bar + number, then a 36pt gear circle in a 44pt hit area — no
+   capsule chrome. A limited-access banner (+ Manage) appears under the
+   header when photo access is `.limited`.
 2. **Cover Flow carousel** — the navigation. One square card per category
    (Memory Burst, Duplicates, Similar Shots, Screenshots, Blurry, Large
    Videos, Albums), seated near the vertical middle of the screen.
@@ -220,18 +221,24 @@ All local, all honest — nothing invented, no points/currency, no servers.
   (duplicates 30 · stale screenshots 25 · similar 20 · blurry 15 · large
   videos 10, each scaling with sqrt of the clutter proportion so library
   size doesn't skew it). Grades A≥90 / B≥75 / C≥60 / D≥40 / E. Colors:
-  ≥85 `keep`, ≥60 `chipYellow`, else `toss` — the ring is stroked in the
-  score's color, **never** the brand gradient (that stays reserved).
-  Provisional until the first scan. Lives as a tiny ring+number chip in
-  Home's header (pops on improvement); tapping opens the breakdown
-  sheet, where every penalty row deep-links into the screen that fixes
+  ≥85 `keep`, ≥60 `chipYellow`, else `toss` — every gauge is stroked/filled
+  in the score's color, **never** the brand gradient (that stays reserved).
+  Provisional until the first scan. Home's header shows it as a tiny linear
+  bar + number (pops on improvement); the breakdown sheet upgrades to a big
+  ring gauge, where every penalty row deep-links into the screen that fixes
   it — a reason to return even after a lapse, without punishing you for
   missing a day.
-- **Trophy shelf** (`TrophyShelfView`): the six milestones
-  (100/1k/10k deleted · 1/5/10 GB freed) as a badge
-  grid — achieved in full chip color, locked dimmed with a lock and the
-  goal stated. Reached from Settings → About ("N of 6"). Backed by the
-  same `milestonesShown` history the one-shot moments always wrote.
+- **Trophy shelf** (`TrophyShelfView`): eleven milestones — the original six
+  (100/1k/10k deleted · 1/5/10 GB freed, now an escalating rosette → medal →
+  trophy icon instead of trash cans) plus one per cleanup feature (20
+  duplicates/similar/blurry cleared, 50 screenshots cleared, 5 large videos
+  cleared, each a `checkmark.seal.fill` in that feature's chip color) — as a
+  badge grid, achieved in full chip color, locked dimmed with a lock and the
+  goal stated. A trophy count chip on Home's header (once any are earned)
+  and the Settings → About row both read `TrophyShelfView.badges.count`
+  directly rather than a hardcoded total, so the shelf can grow without the
+  count drifting out of sync. Backed by the same `milestonesShown` history
+  the one-shot moments always wrote.
 
 ## The mascot
 

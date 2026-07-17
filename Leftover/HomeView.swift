@@ -53,8 +53,10 @@ struct HomeView: View {
     let isLoading: Bool
     let isLimitedAccess: Bool
     let healthScore: HealthScore
+    let trophyCount: Int
 
     let onHealth: () -> Void
+    let onTrophies: () -> Void
     let onSettings: () -> Void
     let onManageLimited: () -> Void
     let onStartBurst: () -> Void
@@ -115,7 +117,7 @@ struct HomeView: View {
     // Wordmark leads the page; the stats sit on the trailing side,
     // tucked in next to the settings gear.
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 9) {
             // A step below largeTitle so the wordmark and the trailing
             // stats read as one balanced row instead of a giant next to
             // a whisper.
@@ -132,6 +134,10 @@ struct HomeView: View {
 
             if freedBytes > 0 {
                 statsRow
+            }
+
+            if trophyCount > 0 {
+                trophyChip
             }
 
             healthChip
@@ -151,24 +157,27 @@ struct HomeView: View {
         }
     }
 
-    /// The headline mechanic: a tiny score ring + number. Tapping opens
+    private let healthBarWidth: CGFloat = 28
+
+    /// The headline mechanic: a tiny score bar + number. Tapping opens
     /// the breakdown sheet; the number pops when the score improves.
     private var healthChip: some View {
         Button(action: onHealth) {
-            HStack(spacing: 5) {
-                ZStack {
-                    Circle()
-                        .stroke(Theme.hairline, lineWidth: 3)
-                    Circle()
-                        .trim(from: 0, to: Double(healthScore.score) / 100)
-                        .stroke(healthScore.color,
-                                style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
+            HStack(spacing: 6) {
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Theme.hairline)
+                        .frame(width: healthBarWidth, height: 5)
+                    Capsule()
+                        .fill(healthScore.color)
+                        .frame(width: healthBarWidth * CGFloat(healthScore.score) / 100, height: 5)
                 }
-                .frame(width: 18, height: 18)
+                .opacity(healthScore.isProvisional ? 0.6 : 1)
 
                 Text("\(healthScore.score)")
                     .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .fixedSize()
                     .contentTransition(.numericText())
                     .foregroundColor(Theme.ink)
                     .opacity(healthScore.isProvisional ? 0.6 : 1)
@@ -190,6 +199,29 @@ struct HomeView: View {
         }
         .accessibilityLabel("Library health \(healthScore.score) out of 100\(healthScore.isProvisional ? ", partial score" : "")")
         .accessibilityHint("Shows what's affecting your score")
+    }
+
+    /// Trophy count, in the header slot the streak flame used to occupy.
+    private var trophyChip: some View {
+        Button(action: onTrophies) {
+            HStack(spacing: 3) {
+                Image(systemName: "trophy.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Theme.chipYellow)
+                Text("\(trophyCount)")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .lineLimit(1)
+                    .fixedSize()
+                    .contentTransition(.numericText())
+                    .foregroundColor(Theme.ink)
+            }
+            .frame(height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .animation(Theme.settle, value: trophyCount)
+        .accessibilityLabel("\(trophyCount) trophies earned")
+        .accessibilityHint("Opens your trophy shelf")
     }
 
     // Bare stats beside the gear — no chrome, sized to sit comfortably

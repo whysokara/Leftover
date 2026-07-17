@@ -119,7 +119,7 @@ struct ContentView: View {
                         withAnimation(Theme.settle) { showLargeVideos = false }
                     },
                     onToss: { assets, freed in
-                        performBatchDelete(assets, freed: freed) {
+                        performBatchDelete(assets, freed: freed, category: .videos) {
                             let ids = Set(assets.map(\.localIdentifier))
                             largeVideos.removeAll { ids.contains($0.id) }
                             videoCount = max(videoCount - assets.count, 0)
@@ -135,7 +135,7 @@ struct ContentView: View {
                         withAnimation(Theme.settle) { showDuplicates = false }
                     },
                     onToss: { assets, freed in
-                        performBatchDelete(assets, freed: freed) {
+                        performBatchDelete(assets, freed: freed, category: .duplicates) {
                             libraryScanner.removeAssets(withIdentifiers: Set(assets.map(\.localIdentifier)))
                         }
                     }
@@ -149,7 +149,7 @@ struct ContentView: View {
                         withAnimation(Theme.settle) { showSimilar = false }
                     },
                     onToss: { assets, freed in
-                        performBatchDelete(assets, freed: freed) {
+                        performBatchDelete(assets, freed: freed, category: .similar) {
                             libraryScanner.removeAssets(withIdentifiers: Set(assets.map(\.localIdentifier)))
                         }
                     }
@@ -538,7 +538,9 @@ struct ContentView: View {
                     isLoading: isLoadingHome,
                     isLimitedAccess: photoAuthStatus == .limited,
                     healthScore: healthScore,
+                    trophyCount: stats.achievedMilestones.count,
                     onHealth: { showHealth = true },
+                    onTrophies: { showTrophies = true },
                     onSettings: { showSettings = true },
                     onManageLimited: { presentLimitedLibraryPicker() },
                     onStartBurst: { startSession(.burst, assets: burstAssets) },
@@ -1440,7 +1442,14 @@ struct ContentView: View {
                     // instead of restarting the album from zero.
                     let wasAtEnd = currentIndex >= photoAssets.count
                     let resumeIndex = max(currentIndex - count, 0)
-                    stats.recordDelete(count: count, freed: totalSize)
+                    let category: Stats.ClearCategory? = {
+                        switch sessionSource {
+                        case .screenshots: return .screenshots
+                        case .blurry: return .blurry
+                        case .album, .burst: return nil
+                        }
+                    }()
+                    stats.recordDelete(count: count, freed: totalSize, category: category)
                     if count > 0 {
                         // Any session that tosses ≥ 1 photo marks today complete.
                         stats.completeBurst()
@@ -1496,7 +1505,7 @@ struct ContentView: View {
     /// Batch delete outside a swipe session (Large Videos, Duplicates).
     /// Same PhotoKit pattern as deleteMarkedPhotos: one performChanges,
     /// stats + reminder wiring, celebration on success, toast on failure.
-    func performBatchDelete(_ assets: [PHAsset], freed: Int64, onSuccess: @escaping () -> Void) {
+    func performBatchDelete(_ assets: [PHAsset], freed: Int64, category: Stats.ClearCategory? = nil, onSuccess: @escaping () -> Void) {
         guard !assets.isEmpty, !isDeleting else { return }
         isDeleting = true
         prefetchThumbnails(of: Array(assets.prefix(7))) { images in
@@ -1507,7 +1516,7 @@ struct ContentView: View {
                     self.isDeleting = false
                     if success {
                         Haptics.success()
-                        self.stats.recordDelete(count: assets.count, freed: freed)
+                        self.stats.recordDelete(count: assets.count, freed: freed, category: category)
                         self.stats.completeBurst()
                         self.notifications.reschedule(burstDoneToday: true)
                         withAnimation(Theme.settle) {

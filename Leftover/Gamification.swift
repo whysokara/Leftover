@@ -247,13 +247,18 @@ struct TrophyShelfView: View {
     @State private var appeared = false
 
     // Mirrors Stats.checkMilestones exactly — names are the join key.
-    private static let badges: [(name: String, goal: String, icon: String, chip: Color)] = [
-        ("100 photos deleted", "Delete 100 photos", "trash", Theme.chipCoral),
-        ("1,000 photos deleted", "Delete 1,000 photos", "trash.fill", Theme.chipCoral),
-        ("10,000 photos deleted", "Delete 10,000 photos", "trash.circle.fill", Theme.chipCoral),
+    static let badges: [(name: String, goal: String, icon: String, chip: Color)] = [
+        ("100 photos deleted", "Delete 100 photos", "rosette", Theme.chipCoral),
+        ("1,000 photos deleted", "Delete 1,000 photos", "medal.fill", Theme.chipCoral),
+        ("10,000 photos deleted", "Delete 10,000 photos", "trophy.fill", Theme.chipCoral),
         ("1 GB freed", "Free 1 GB", "arrow.down.circle", Theme.chipOrange),
         ("5 GB freed", "Free 5 GB", "arrow.down.circle.fill", Theme.chipOrange),
         ("10 GB freed", "Free 10 GB", "sparkles", Theme.chipOrange),
+        ("20 duplicates cleared", "Clear 20 duplicates", "checkmark.seal.fill", Theme.chipTeal),
+        ("20 similar shots cleared", "Clear 20 similar shots", "checkmark.seal.fill", Theme.chipPink),
+        ("20 blurry photos cleared", "Clear 20 blurry photos", "checkmark.seal.fill", Theme.chipYellow),
+        ("50 screenshots cleared", "Clear 50 screenshots", "checkmark.seal.fill", Theme.chipBlue),
+        ("5 large videos cleared", "Clear 5 large videos", "checkmark.seal.fill", Theme.chipCoral),
     ]
 
     var body: some View {
