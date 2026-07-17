@@ -156,8 +156,10 @@ an orphan in an otherwise-empty bar).
 
 ## The swipe screen (canonical layout)
 
-1. Top bar: bare `✕` glyph, 44pt hit area (confirms if marks exist) · 4pt
-   progress bar (cream on hairline) · glass "Keep all" pill (44pt).
+1. Top bar: `BackButton` — a back chevron on a soft `surface` circle,
+   36pt visual / 44pt hit area, matching Home's gear (confirms if marks
+   exist) · 4pt progress bar (cream on hairline) · glass "Keep all" pill
+   (44pt).
 2. Counter row: marked count left (`toss`, mono), kept count right (`keep`,
    mono).
 3. Card stack: top card + 2 peeking (scale 0.94/0.88, lift −16/−30, opacity

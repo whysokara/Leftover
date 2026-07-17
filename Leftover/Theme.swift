@@ -159,20 +159,25 @@ struct QuietButtonStyle: ButtonStyle {
     }
 }
 
-/// The bare "xmark" used to exit every full-screen list/session — no
-/// backing shape, just the glyph with a full 44pt hit area.
+/// The standard back affordance used to exit every full-screen
+/// list/session — a back chevron on a soft surface circle, matching
+/// Home's gear button so the two read as one icon-button set. 36pt
+/// visual, full 44pt hit area.
 struct BackButton: View {
     var label: String = "Back to home"
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "xmark")
-                .font(.system(size: 17, weight: .semibold))
+            Image(systemName: "chevron.backward")
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(Theme.ink)
+                .frame(width: 36, height: 36)
+                .background(Circle().fill(Theme.surface))
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
+        .buttonStyle(ScaleButtonStyle())
         .accessibilityLabel(label)
     }
 }
