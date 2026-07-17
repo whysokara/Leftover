@@ -3,11 +3,13 @@
 //  Leftover
 //
 //  First-run flow, replayable from Settings ("How Leftover Works"):
-//  practice the swipe on demo cards, hear the safety story, then get
-//  primed before the system photo-permission dialog fires. Three
-//  steps, forward-only, skippable. The practice card is a scaled-down
-//  copy of the real swipe screen's physics so the first real swipe
-//  feels familiar.
+//  practice the swipe on demo cards, then get primed for full photo
+//  access with the trust story folded in right under the ask. Two
+//  steps, value first (a real gesture, a micro-win) then permission —
+//  forward-only, skippable on the practice step. The practice card is a
+//  scaled-down copy of the real swipe screen's physics so the first
+//  real swipe feels familiar. On a genuine first run, finishing drops
+//  the user straight into their first cleanup (see ContentView).
 //
 
 import SwiftUI
@@ -27,6 +29,8 @@ struct OnboardingView: View {
     @State private var isThrowing = false
 
     @State private var authStatus = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+
+    private let stepCount = 2
 
     init(initialStep: Int = 0, onFinished: @escaping () -> Void) {
         self.initialStep = initialStep
@@ -50,7 +54,6 @@ struct OnboardingView: View {
             Group {
                 switch step {
                 case 0: practiceStep
-                case 1: trustStep
                 default: permissionStep
                 }
             }
@@ -78,7 +81,9 @@ struct OnboardingView: View {
 
             Spacer()
 
-            if step < 2 {
+            // Skip only before the permission ask — the last step is the
+            // one thing onboarding actually needs.
+            if step < 1 {
                 Button("Skip") { onFinished() }
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(Theme.dim)
@@ -93,7 +98,7 @@ struct OnboardingView: View {
 
     private var progressDots: some View {
         HStack(spacing: 8) {
-            ForEach(0..<3, id: \.self) { index in
+            ForEach(0..<stepCount, id: \.self) { index in
                 Circle()
                     .fill(index == step ? Theme.cream : Theme.dim.opacity(0.35))
                     .frame(width: 7, height: 7)
@@ -101,7 +106,7 @@ struct OnboardingView: View {
         }
         .animation(Theme.settle, value: step)
         .accessibilityElement()
-        .accessibilityLabel("Step \(step + 1) of 3")
+        .accessibilityLabel("Step \(min(step, stepCount - 1) + 1) of \(stepCount)")
     }
 
     // MARK: - Step 1: practice the swipe
@@ -123,12 +128,15 @@ struct OnboardingView: View {
                 .cascadeIn(appeared, slot: 2)
                 .padding(.vertical, 6)
 
-            Text(practiceThrown == 0 ? "Try it — swipe left to delete" : "Now swipe right to keep")
+            Text(hintText)
                 .font(.footnote.weight(.semibold))
-                .foregroundColor(practiceThrown == 0 ? Theme.toss : Theme.keep)
+                .foregroundColor(hintColor)
+                .multilineTextAlignment(.center)
                 .animation(Theme.settle, value: practiceThrown)
 
             // Tap-first / VoiceOver path — same code path as the gesture.
+            // Fades out once both cards are done so there's nothing to tap
+            // into, without collapsing the layout.
             HStack(spacing: 14) {
                 practiceDockButton("trash.fill", chip: Theme.chipCoral, label: "Delete") {
                     throwPractice(toss: true)
@@ -137,9 +145,25 @@ struct OnboardingView: View {
                     throwPractice(toss: false)
                 }
             }
+            .opacity(practiceThrown >= 2 ? 0 : 1)
+            .disabled(practiceThrown >= 2)
+            .animation(Theme.settle, value: practiceThrown)
             .cascadeIn(appeared, slot: 3)
         }
         .padding(.horizontal, 24)
+        .onAppear(perform: scheduleHintNudge)
+    }
+
+    private var hintText: String {
+        switch practiceThrown {
+        case 0: return "Try it — swipe left to delete"
+        case 1: return "Now swipe right to keep"
+        default: return "That's the whole app — nothing's gone until you confirm."
+        }
+    }
+
+    private var hintColor: Color {
+        practiceThrown == 0 ? Theme.toss : Theme.keep
     }
 
     private var practiceStack: some View {
@@ -158,8 +182,18 @@ struct OnboardingView: View {
             }
             .allowsHitTesting(false)
 
-            ForEach(Array((practiceThrown..<2).reversed()), id: \.self) { index in
-                practiceCard(index, isTop: index == practiceThrown)
+            if practiceThrown >= 2 {
+                // The micro-win: they made both calls, nothing broke.
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 62, weight: .semibold))
+                    .foregroundColor(Theme.keep)
+                    .shadow(color: Theme.keep.opacity(0.4), radius: 18)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    .accessibilityHidden(true)
+            } else {
+                ForEach(Array((practiceThrown..<2).reversed()), id: \.self) { index in
+                    practiceCard(index, isTop: index == practiceThrown)
+                }
             }
         }
         .frame(maxWidth: .infinity)
@@ -243,6 +277,28 @@ struct OnboardingView: View {
         Double(min(max(distance - 24, 0) / 160, 1))
     }
 
+    /// If the user just sits on the practice card, nudge it toward the
+    /// delete edge so the gesture teaches itself. Repeats once more while
+    /// still idle, then leaves them alone. Off under Reduce Motion.
+    private func scheduleHintNudge() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { nudgeIfIdle(repeatAgain: true) }
+    }
+
+    private func nudgeIfIdle(repeatAgain: Bool) {
+        guard step == 0, practiceThrown == 0, !isThrowing, practiceOffset == .zero else { return }
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.5)) {
+            practiceOffset = CGSize(width: -54, height: 0)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.34) {
+            guard practiceThrown == 0, !isThrowing else { return }
+            withAnimation(Theme.settle) { practiceOffset = .zero }
+            if repeatAgain {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.8) { nudgeIfIdle(repeatAgain: false) }
+            }
+        }
+    }
+
     private func throwPractice(toss: Bool) {
         guard !isThrowing, practiceThrown < 2 else { return }
         Haptics.impact(toss ? .rigid : .soft)
@@ -267,67 +323,32 @@ struct OnboardingView: View {
         practiceOffset = .zero
         if practiceThrown >= 2 {
             Haptics.success()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            // Let the success mark and copy land before moving on.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                 withAnimation(Theme.settle) { step = 1 }
             }
         }
     }
 
-    // MARK: - Step 2: trust
+    // MARK: - Step 2: permission, with the trust story folded in
 
-    private var trustStep: some View {
-        VStack(spacing: 24) {
-            Text("Your Photos Are Safe")
+    private var permissionStep: some View {
+        VStack(spacing: Theme.Space.lg) {
+            IconBadge(icon: "photo.on.rectangle.angled", chip: Theme.chipBlue, size: 72)
+                .cascadeIn(appeared, slot: 0)
+
+            Text("Let's find your clutter")
                 .font(Theme.display(30))
                 .foregroundColor(Theme.ink)
                 .multilineTextAlignment(.center)
+                .cascadeIn(appeared, slot: 1)
 
-            VStack(alignment: .leading, spacing: Theme.Space.lg) {
-                trustRow("checkmark.shield", "Nothing is deleted until you confirm.")
-                trustRow("clock.arrow.circlepath", "Deleted photos stay in Recently Deleted for 30 days.")
-                trustRow("iphone", "Everything stays on this iPhone — no cloud, no accounts.")
-            }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Theme.surface)
-            )
-
-            Button("Continue") {
-                withAnimation(Theme.settle) { step = 2 }
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding(.horizontal, 40)
-        }
-        .padding(.horizontal, 24)
-    }
-
-    private func trustRow(_ icon: String, _ text: String) -> some View {
-        HStack(spacing: 12) {
-            IconBadge(icon: icon, chip: Theme.chipTeal, size: 32)
-            Text(text)
-                .font(.subheadline)
-                .foregroundColor(Theme.ink)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    // MARK: - Step 3: permission primer
-
-    private var permissionStep: some View {
-        VStack(spacing: 16) {
-            IconBadge(icon: "photo.on.rectangle.angled", chip: Theme.chipBlue, size: 72)
-
-            Text("One Permission")
-                .font(Theme.display(30))
-                .foregroundColor(Theme.ink)
-
-            Text("Leftover needs full photo access to find duplicates, screenshots, and blurry shots. Photos never leave your phone.")
+            Text("Full access lets Leftover surface duplicates, screenshots, and blurry shots — found and cleared right here, never uploaded.")
                 .font(.subheadline)
                 .foregroundColor(Theme.dim)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 12)
+                .cascadeIn(appeared, slot: 2)
 
             Group {
                 switch authStatus {
@@ -352,9 +373,40 @@ struct OnboardingView: View {
                 }
             }
             .padding(.horizontal, 40)
-            .padding(.top, 8)
+            .padding(.top, Theme.Space.xs)
+            .cascadeIn(appeared, slot: 3)
+
+            // The old standalone "trust" step, condensed to badges and
+            // parked right under the button — reassurance where the
+            // finger hovers, not a screen earlier.
+            trustStrip
+                .padding(.top, Theme.Space.sm)
+                .cascadeIn(appeared, slot: 4)
         }
         .padding(.horizontal, 24)
+    }
+
+    private var trustStrip: some View {
+        HStack(alignment: .top, spacing: 0) {
+            trustBadge("lock.fill", "On device")
+            trustBadge("icloud.slash.fill", "Never uploaded")
+            trustBadge("clock.arrow.circlepath", "30-day undo")
+        }
+    }
+
+    private func trustBadge(_ icon: String, _ text: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(Theme.chipTeal)
+            Text(text)
+                .font(.caption2)
+                .foregroundColor(Theme.dim)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     private func requestAccess() {

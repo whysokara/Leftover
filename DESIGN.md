@@ -89,27 +89,40 @@ Never cap with `.dynamicTypeSize(...)`.
 
 ## Onboarding
 
-Three steps (`OnboardingView`), first launch only (splash Start →
-onboarding → Home), replayable from Settings → About → "How Leftover
-Works". Skippable on steps 1–2; forward-only; progress dots; push
-transitions; no `NeonCardMark` (the mark keeps its three placements).
-The top bar carries the plain-serif `Leftover` wordmark on the leading
-edge (brand continuity from the splash; also anchors it so "Skip" isn't
-an orphan in an otherwise-empty bar).
+Two steps (`OnboardingView`), value-first then permission — the flow's
+one job is to get a first-timer to their first real swipe fast.
+First launch only (splash Start → onboarding → first cleanup),
+replayable from Settings → About → "How Leftover Works". Skippable on
+step 1; forward-only; two progress dots; push transitions; no
+`NeonCardMark` (the mark keeps its three placements). The top bar
+carries the plain-serif `Leftover` wordmark on the leading edge (brand
+continuity from the splash; also anchors "Skip" so it isn't an orphan).
 
 1. **Swipe to Decide** — taught by doing: two chip-gradient practice
    cards with the real swipe physics in miniature (drag, bottom-anchored
-   rotation, edge glows, throw + haptics). Caption prompts left-then-right;
-   two throws auto-advance. A mini trash/check dock drives the same code
-   path — the tap-first and VoiceOver route.
-2. **Your Photos Are Safe** — three `IconBadge` trust rows (confirm-first,
-   30-day Recently Deleted, on-device only), reusing Settings' copy.
-3. **One Permission** — full-access primer ("…find duplicates,
-   screenshots, and blurry shots. Photos never leave your phone.") whose
-   button adapts to live authorization: `notDetermined` → "Allow Photo
-   Access" fires the system dialog; granted/limited (replay) → "Done";
-   denied → "Open Settings" + quiet "Done". Home's own permission request
-   waits naturally, because Home can't appear while onboarding is up.
+   rotation, edge glows, throw + haptics). If the user sits idle the top
+   card self-nudges toward the delete edge (twice, then stops; off under
+   Reduce Motion). A mini trash/check dock drives the same code path (the
+   tap-first / VoiceOver route). Completing both throws lands a `keep`
+   check-mark micro-win ("That's the whole app — nothing's gone until you
+   confirm.") before auto-advancing.
+2. **Let's find your clutter** — the permission ask with the trust story
+   folded in where the finger hovers, not a screen earlier. Benefit-first
+   copy ("Full access lets Leftover surface duplicates, screenshots, and
+   blurry shots — found and cleared right here, never uploaded.") over an
+   adaptive button (`notDetermined` → "Allow Photo Access" fires the system
+   dialog; granted/limited replay → "Done"; denied → "Open Settings" +
+   quiet "Done"), with a three-badge trust strip under it (🔒 on device ·
+   ☁︎⃠ never uploaded · ⏱ 30-day undo — the old standalone trust step,
+   condensed). Home's own permission request waits, because Home can't
+   appear while onboarding is up.
+
+**The handoff.** On a genuine first run (not a Settings replay) that ends
+with access granted, finishing drops the user straight into their first
+Memory Burst cleanup — their first *action* is a real swipe on real
+photos ending in a real "X freed", not the Home screen. Armed on finish
+(`pendingFirstCleanup`), fired by `loadHomeData` once the burst assets are
+in hand; an empty library falls back to Home.
 
 ## Home (canonical layout)
 

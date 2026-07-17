@@ -41,6 +41,10 @@ struct ContentView: View {
     @State private var showOnboarding = false
     @State private var pendingOnboardingReplay = false
     @State private var onboardingInitialStep = 0
+    // Genuine first run (splash Start), not a Settings replay — used to
+    // drop the user into their first cleanup once onboarding finishes.
+    @State private var isFirstRunOnboarding = false
+    @State private var pendingFirstCleanup = false
 
     @StateObject private var stats = Stats()
     @StateObject private var notifications = NotificationManager()
@@ -90,6 +94,15 @@ struct ContentView: View {
                 splashScreenView
             } else if showOnboarding {
                 OnboardingView(initialStep: onboardingInitialStep) {
+                    // On a genuine first run that ended with access granted,
+                    // hand straight into the first cleanup (armed here,
+                    // fired once loadHomeData has the burst assets) instead
+                    // of resting on Home. Replays just dismiss.
+                    let status = PHPhotoLibrary.authorizationStatus(for: .readWrite)
+                    if isFirstRunOnboarding && (status == .authorized || status == .limited) {
+                        pendingFirstCleanup = true
+                    }
+                    isFirstRunOnboarding = false
                     withAnimation(Theme.settle) { showOnboarding = false }
                 }
                 .transition(pushTransition)
@@ -460,6 +473,7 @@ struct ContentView: View {
             if isFirstLaunch {
                 Button("Start") {
                     stats.hasLaunchedBefore = true
+                    isFirstRunOnboarding = true
                     withAnimation(Theme.settle) {
                         showSplashScreen = false
                         // First launch flows through onboarding before
@@ -590,7 +604,12 @@ struct ContentView: View {
                         #if DEBUG
                         // Headless-verification hooks (simctl launch … -Leftover…).
                         let args = ProcessInfo.processInfo.arguments
-                        if args.contains("-LeftoverAutoSession"), !self.sessionActive {
+                        if args.contains("-LeftoverFirstRunCleanup"), !self.sessionActive {
+                            // Exercises the first-run handoff: loadHomeData
+                            // (already kicked off above) fires startSession
+                            // once the burst is in hand.
+                            self.pendingFirstCleanup = true
+                        } else if args.contains("-LeftoverAutoSession"), !self.sessionActive {
                             self.loadPhotos(origin: .home)
                         } else if args.contains("-LeftoverOpenDuplicates") {
                             self.showDuplicates = true
@@ -1769,6 +1788,17 @@ struct ContentView: View {
                 self.isLoadingHome = false
                 // Warm the strip's first screens of thumbnails.
                 ThumbCache.precache(Array(recent.prefix(80)))
+
+                // First run just finished: drop straight into the first
+                // cleanup now that the burst is in hand (the burst chain
+                // always yields something unless the library is empty).
+                if self.pendingFirstCleanup, !self.sessionActive, !burst.isEmpty {
+                    self.pendingFirstCleanup = false
+                    self.startSession(.burst, assets: burst)
+                } else if self.pendingFirstCleanup {
+                    // Empty library — nothing to clean; just land on Home.
+                    self.pendingFirstCleanup = false
+                }
 
                 // Trailing pass: size the screenshot pile without holding
                 // up the paint above (sizes NSCache after first lookup).
