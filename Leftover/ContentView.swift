@@ -977,8 +977,11 @@ struct ContentView: View {
     }
 
     private var cardStack: some View {
-        // Greedy up to 470pt, shrinking on short devices (SE-class) so
+        // Greedy up to 560pt, shrinking on short devices (SE-class) so
         // the dock never gets pushed off-screen by a fixed card height.
+        // The cap is generous so the card actually fills a tall screen —
+        // a smaller cap left it floating mid-column between an over-large
+        // gap above (counter) and below (dock).
         GeometryReader { geo in
             ZStack {
                 ForEach(stackIndices.reversed(), id: \.self) { index in
@@ -989,7 +992,7 @@ struct ContentView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxHeight: 470)
+        .frame(maxHeight: 560)
     }
 
     // One card view for every depth so a peeking card animates smoothly
