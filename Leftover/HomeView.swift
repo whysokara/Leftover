@@ -2,7 +2,7 @@
 //  HomeView.swift
 //  Leftover
 //
-//  Home dashboard: freed-space stat, streak flame, a Cover Flow
+//  Home dashboard: freed-space stat, a Cover Flow
 //  carousel of category cards (Memory Burst + every cleanup engine +
 //  Albums — the carousel IS the navigation), and a vertical grid of
 //  the whole library, newest first. Dumb view — data and actions come
@@ -34,8 +34,6 @@ struct CardPreviews {
 
 struct HomeView: View {
     let freedBytes: Int64
-    let streakCount: Int
-    let streakPop: Bool
 
     let burstDetail: String
     let burstDimmed: Bool
@@ -69,7 +67,6 @@ struct HomeView: View {
     let onRecent: (Int) -> Void
     let onComingSoon: (String) -> Void
 
-    @State private var flameScale: CGFloat = 1.0
     @State private var appeared = false
     @State private var healthPulse = false
     @State private var lastHealthScore = 100
@@ -133,7 +130,7 @@ struct HomeView: View {
 
             Spacer(minLength: 8)
 
-            if freedBytes > 0 || streakCount > 0 {
+            if freedBytes > 0 {
                 statsRow
             }
 
@@ -198,45 +195,14 @@ struct HomeView: View {
     // Bare stats beside the gear — no chrome, sized to sit comfortably
     // against the wordmark.
     private var statsRow: some View {
-        HStack(spacing: 7) {
-            if freedBytes > 0 {
-                Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .lineLimit(1)
-                    .fixedSize()
-                    .contentTransition(.numericText())
-                    .animation(Theme.settle, value: freedBytes)
-                    .foregroundColor(Theme.dim)
-                    .accessibilityLabel("Freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file)) so far")
-            }
-
-            if freedBytes > 0 && streakCount > 0 {
-                Circle()
-                    .fill(Theme.dim.opacity(0.5))
-                    .frame(width: 3, height: 3)
-            }
-
-            if streakCount > 0 {
-                HStack(spacing: 3) {
-                    Image(systemName: "flame")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(Theme.cream)
-                        .scaleEffect(flameScale)
-                    Text("\(streakCount)")
-                        .font(.subheadline.weight(.semibold).monospacedDigit())
-                        .foregroundColor(Theme.ink)
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(streakCount) day streak")
-                .onAppear {
-                    guard streakPop else { return }
-                    withAnimation(Theme.pop) { flameScale = 1.35 }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                        withAnimation(Theme.settle) { flameScale = 1.0 }
-                    }
-                }
-            }
-        }
+        Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
+            .font(.subheadline.weight(.semibold).monospacedDigit())
+            .lineLimit(1)
+            .fixedSize()
+            .contentTransition(.numericText())
+            .animation(Theme.settle, value: freedBytes)
+            .foregroundColor(Theme.dim)
+            .accessibilityLabel("Freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file)) so far")
     }
 
     // MARK: - Cover Flow

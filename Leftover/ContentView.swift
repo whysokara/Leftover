@@ -220,8 +220,6 @@ struct ContentView: View {
             if phase == .background {
                 persistSessionIfNeeded()
                 notifications.burstTeaser = burstTeaser
-                notifications.streakToProtect =
-                    (!stats.isBurstDoneToday && stats.streakCount >= 3) ? stats.streakCount : 0
                 notifications.reschedule(burstDoneToday: stats.isBurstDoneToday)
             }
         }
@@ -513,8 +511,6 @@ struct ContentView: View {
             } else {
                 HomeView(
                     freedBytes: stats.lifetimeFreedBytes,
-                    streakCount: stats.streakCount,
-                    streakPop: stats.streakJustIncremented,
                     burstDetail: stats.isBurstDoneToday
                         ? "Done today"
                         : (burstAssets.isEmpty ? "None" : burstAssets.count.formatted()),
@@ -656,26 +652,6 @@ struct ContentView: View {
                 .foregroundColor(Theme.dim)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-
-            if stats.streakJustIncremented {
-                HStack(spacing: 6) {
-                    Image(systemName: "flame.fill")
-                        .foregroundColor(Theme.cream)
-                    Text("\(stats.streakCount)-day streak")
-                        .font(.system(.subheadline).weight(.bold))
-                        .foregroundColor(Theme.ink)
-                }
-            }
-
-            if stats.freezeJustEarned {
-                HStack(spacing: 6) {
-                    Image(systemName: "snowflake")
-                        .foregroundColor(Theme.chipBlue)
-                    Text("You earned a streak freeze")
-                        .font(.subheadline)
-                        .foregroundColor(Theme.dim)
-                }
-            }
 
             Button("Done") {
                 withAnimation(Theme.settle) { returnHome() }

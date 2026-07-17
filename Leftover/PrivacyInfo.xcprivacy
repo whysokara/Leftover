@@ -4,7 +4,7 @@
 <dict>
     <!-- Photo-library access is governed by NSPhotoLibraryUsageDescription,
          not the required-reason API list. The only required-reason API this
-         app touches is UserDefaults (streaks, reminder settings, saved
+         app touches is UserDefaults (stats, reminder settings, saved
          sessions) — CA92.1: accessed only by the app itself. -->
     <key>NSPrivacyAccessedAPITypes</key>
     <array>

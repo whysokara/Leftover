@@ -2,7 +2,7 @@
 //  Gamification.swift
 //  Leftover
 //
-//  The retention layer beyond streaks, all local and all honest:
+//  The retention layer, all local and all honest:
 //  - HealthScore: a 0–100 library score computed from what the
 //    scanners actually find — new clutter drops it, cleaning raises
 //    it. State maintenance, not chain-breaking.
@@ -254,8 +254,6 @@ struct TrophyShelfView: View {
         ("1 GB freed", "Free 1 GB", "arrow.down.circle", Theme.chipOrange),
         ("5 GB freed", "Free 5 GB", "arrow.down.circle.fill", Theme.chipOrange),
         ("10 GB freed", "Free 10 GB", "sparkles", Theme.chipOrange),
-        ("7-day streak", "Clean 7 days in a row", "flame", Theme.chipYellow),
-        ("30-day streak", "Clean 30 days in a row", "flame.fill", Theme.chipYellow),
     ]
 
     var body: some View {

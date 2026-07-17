@@ -38,8 +38,7 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 
 - ✅ **Today's Memory Burst** — a daily bite of "this day, years ago" photos, spread across multiple years (falls back to a screenshot sweep so it never dead-ends)
 - ✅ **Library Health Score** — an honest 0–100 grade of your library's clutter that drops when mess piles up and climbs as you clean, with a breakdown that jumps straight to the fix
-- ✅ **Trophy shelf** — every milestone you've hit (photos deleted, space freed, streaks), collected as badges instead of vanishing after one celebration
-- ✅ **Streaks with freezes** — every 7-day streak earns a freeze that auto-bridges a missed day
+- ✅ **Trophy shelf** — every milestone you've hit (photos deleted, space freed), collected as badges instead of vanishing after one celebration
 - ✅ **Daily reminder** — one gentle nudge, only if you haven't played today
 - ✅ **Screenshot Sweep** cleanup flow
 - ✅ **Duplicates finder** — perceptual-hash groups with the best copy preselected to keep, cached so rescans are instant

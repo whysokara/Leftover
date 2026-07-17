@@ -2,7 +2,7 @@
 //  SettingsView.swift
 //  Leftover
 //
-//  Phase 6 (partial): daily reminder, streak freezes, privacy trust
+//  Phase 6 (partial): daily reminder, privacy trust
 //  panel, and About. Plus / sharing sections arrive with later phases.
 //
 
@@ -57,21 +57,6 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    HStack(spacing: 12) {
-                        IconBadge(icon: "snowflake", chip: Theme.chipBlue, size: 28)
-                        Text("Freezes ready")
-                        Spacer()
-                        Text("\(stats.freezes)")
-                            .font(.body.monospacedDigit().weight(.semibold))
-                            .foregroundColor(Theme.dim)
-                    }
-                } header: {
-                    Text("Streak")
-                } footer: {
-                    Text("Earn a freeze every 7-day streak. If you miss a day, a freeze is used automatically to keep your streak alive.")
-                }
-
-                Section {
                     trustRow(icon: "iphone", text: "Everything stays on this iPhone")
                     trustRow(icon: "icloud.slash", text: "Your photos are never uploaded")
                     trustRow(icon: "checkmark.shield", text: "Deletions are always yours to confirm")
@@ -106,7 +91,7 @@ struct SettingsView: View {
                             Text("Trophies")
                                 .foregroundColor(Theme.ink)
                             Spacer()
-                            Text("\(stats.achievedMilestones.count) of 8")
+                            Text("\(stats.achievedMilestones.count) of 6")
                                 .font(.footnote.monospacedDigit())
                                 .foregroundColor(Theme.dim)
                             Image(systemName: "chevron.right")
@@ -215,7 +200,7 @@ struct PrivacyPolicyView: View {
                     )
                     policySection(
                         title: "What Leftover collects",
-                        body: "Nothing. No analytics, no tracking, no third-party SDKs, no advertising identifiers. Streaks, freezes, and reminder settings are stored only in this app's local storage on your phone."
+                        body: "Nothing. No analytics, no tracking, no third-party SDKs, no advertising identifiers. Reminder settings are stored only in this app's local storage on your phone."
                     )
                     policySection(
                         title: "Deletions",

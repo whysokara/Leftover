@@ -2,7 +2,7 @@
 //  Stats.swift
 //  Leftover
 //
-//  Persistent counters and the streak/freeze engine.
+//  Persistent counters and milestone tracking.
 //  Values mirror into the App Group suite so the widget can read them.
 //
 
@@ -16,12 +16,7 @@ final class Stats: ObservableObject {
 
     @Published var lifetimeFreedBytes: Int64
     @Published var lifetimeTossedCount: Int
-    @Published var streakCount: Int
-    @Published var freezes: Int
-    @Published var lastCompletedDay: String   // "yyyy-MM-dd", "" if never
     @Published var burstCompletedDay: String  // day the last burst finished
-    @Published var freezeJustEarned = false
-    @Published var streakJustIncremented = false
 
     /// One-shot celebration moments, consumed by ContentView.
     @Published var pendingMilestone: String? = nil
@@ -52,9 +47,6 @@ final class Stats: ObservableObject {
     init() {
         lifetimeFreedBytes = Int64(defaults.integer(forKey: "lifetimeFreedBytes"))
         lifetimeTossedCount = defaults.integer(forKey: "lifetimeTossedCount")
-        streakCount = defaults.integer(forKey: "streakCount")
-        freezes = defaults.integer(forKey: "freezes")
-        lastCompletedDay = defaults.string(forKey: "lastCompletedDay") ?? ""
         burstCompletedDay = defaults.string(forKey: "burstCompletedDay") ?? ""
         weekTossed = defaults.integer(forKey: "weekTossed")
         weekFreed = Int64(defaults.integer(forKey: "weekFreed"))
@@ -77,42 +69,11 @@ final class Stats: ObservableObject {
         persist()
     }
 
-    /// Marks today's burst complete and advances the streak.
-    /// Gap of one day continues the streak; longer gaps consume freezes
-    /// (one per missed day) before resetting. Every 7th consecutive day
-    /// earns a freeze, capped at 3.
+    /// Marks today's burst complete.
     func completeBurst() {
         let today = Stats.dayFormatter.string(from: Date())
         guard burstCompletedDay != today else { return }
         burstCompletedDay = today
-        freezeJustEarned = false
-        streakJustIncremented = false
-
-        let gap = daysBetween(lastCompletedDay, and: today)
-        switch gap {
-        case nil:
-            streakCount = 1
-        case 0:
-            break // already counted today via another path
-        case 1:
-            streakCount += 1
-            streakJustIncremented = true
-        default:
-            let missed = gap! - 1
-            if missed <= freezes {
-                freezes -= missed
-                streakCount += 1
-                streakJustIncremented = true
-            } else {
-                streakCount = 1
-            }
-        }
-
-        if streakCount > 0 && streakCount % 7 == 0 && freezes < 3 {
-            freezes += 1
-            freezeJustEarned = true
-        }
-        lastCompletedDay = today
         checkMilestones()
         persist()
     }
@@ -130,8 +91,6 @@ final class Stats: ObservableObject {
             ("10,000 photos deleted", lifetimeTossedCount >= 10_000),
             ("1,000 photos deleted", lifetimeTossedCount >= 1_000),
             ("100 photos deleted", lifetimeTossedCount >= 100),
-            ("30-day streak", streakCount >= 30),
-            ("7-day streak", streakCount >= 7),
         ]
         var shown = Set(defaults.stringArray(forKey: "milestonesShown") ?? [])
         for (name, hit) in candidates where hit && !shown.contains(name) {
@@ -177,25 +136,14 @@ final class Stats: ObservableObject {
         return "\(year)-W\(week)"
     }
 
-    private func daysBetween(_ from: String, and to: String) -> Int? {
-        guard !from.isEmpty,
-              let fromDate = Stats.dayFormatter.date(from: from),
-              let toDate = Stats.dayFormatter.date(from: to) else { return nil }
-        return Calendar.current.dateComponents([.day], from: fromDate, to: toDate).day
-    }
-
     private func persist() {
         defaults.set(Int(lifetimeFreedBytes), forKey: "lifetimeFreedBytes")
         defaults.set(lifetimeTossedCount, forKey: "lifetimeTossedCount")
-        defaults.set(streakCount, forKey: "streakCount")
-        defaults.set(freezes, forKey: "freezes")
-        defaults.set(lastCompletedDay, forKey: "lastCompletedDay")
         defaults.set(burstCompletedDay, forKey: "burstCompletedDay")
         defaults.set(weekTossed, forKey: "weekTossed")
         defaults.set(Int(weekFreed), forKey: "weekFreed")
 
         // Mirror for the widget (no-op until the App Group exists).
-        shared?.set(streakCount, forKey: "streakCount")
         shared?.set(Int(lifetimeFreedBytes), forKey: "lifetimeFreedBytes")
         shared?.set(burstCompletedDay, forKey: "burstCompletedDay")
     }

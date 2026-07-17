@@ -54,8 +54,8 @@ control sitting on a solid chip fill (action dock, solid card faces) uses
 scrim.
 
 Feature identity: Duplicates=teal, Similar Shots=pink, Screenshots=blue,
-Time-related/Burst=orange, Blurry=yellow, Large Videos=coral, Albums=navy,
-Streak flame=cream. Group-review screens carry their chip color as an
+Time-related/Burst=orange, Blurry=yellow, Large Videos=coral, Albums=navy.
+Group-review screens carry their chip color as an
 `accent` (card borders, keeper badges, empty-state buddy).
 
 Icon badges (`IconBadge`, Theme.swift): thin non-`.fill` SF Symbol in its
@@ -110,10 +110,10 @@ transitions; no `NeonCardMark` (the mark keeps its three placements).
 
 ## Home (canonical layout)
 
-1. **Header** — wordmark left; one 32pt `surface` capsule with freed-space ·
-   dot · flame+streak (only when non-zero); 36pt gear circle in a 44pt hit
-   area. A limited-access banner (+ Manage) appears under the header when
-   photo access is `.limited`.
+1. **Header** — wordmark left; bare freed-space stat (only when non-zero),
+   the health score ring+number chip, then a 36pt gear circle in a 44pt hit
+   area — no capsule chrome. A limited-access banner (+ Manage) appears
+   under the header when photo access is `.limited`.
 2. **Cover Flow carousel** — the navigation. One square card per category
    (Memory Burst, Duplicates, Similar Shots, Screenshots, Blurry, Large
    Videos, Albums), seated near the vertical middle of the screen.
@@ -225,12 +225,12 @@ All local, all honest — nothing invented, no points/currency, no servers.
   Provisional until the first scan. Lives as a tiny ring+number chip in
   Home's header (pops on improvement); tapping opens the breakdown
   sheet, where every penalty row deep-links into the screen that fixes
-  it. Streaks punish missing a day; the score gives a reason to return
-  after a lapse — they complement each other.
-- **Trophy shelf** (`TrophyShelfView`): the eight milestones
-  (100/1k/10k deleted · 1/5/10 GB freed · 7/30-day streaks) as a badge
+  it — a reason to return even after a lapse, without punishing you for
+  missing a day.
+- **Trophy shelf** (`TrophyShelfView`): the six milestones
+  (100/1k/10k deleted · 1/5/10 GB freed) as a badge
   grid — achieved in full chip color, locked dimmed with a lock and the
-  goal stated. Reached from Settings → About ("N of 8"). Backed by the
+  goal stated. Reached from Settings → About ("N of 6"). Backed by the
   same `milestonesShown` history the one-shot moments always wrote.
 
 ## The mascot
@@ -252,7 +252,7 @@ tilt/parallax/breathing and the splash pulse all stop; haptics stay.
 |---|---|---|---|
 | Flick | `.spring(0.35, 0.8)` | small state pops, mark toggles | — |
 | Settle | `.spring(0.45, 0.85)` | transitions, progress, toasts, carousel snap | — |
-| Pop | `.interpolatingSpring(100, 6)` | heart, celebration glyph, streak flame | `.light` |
+| Pop | `.interpolatingSpring(100, 6)` | heart, celebration glyph, health score improving | `.light` |
 | ThrowOut | `.interactiveSpring(0.3, 0.72)` | card leaving screen | `.rigid` toss / `.soft` keep |
 | StackAdvance | `.spring(0.4, 0.85)` | next card promoting | — |
 

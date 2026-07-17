@@ -25,9 +25,8 @@ final class NotificationManager: ObservableObject {
     @Published var authDenied = false
 
     /// Set by ContentView before rescheduling: a peek at what's waiting
-    /// ("3 photos from July 2019") and a streak worth protecting (≥ 3).
+    /// ("3 photos from July 2019").
     var burstTeaser: String? = nil
-    var streakToProtect: Int = 0
 
     init() {
         reminderEnabled = defaults.bool(forKey: "reminderEnabled")
@@ -78,13 +77,10 @@ final class NotificationManager: ObservableObject {
             fireDate = calendar.date(byAdding: .day, value: 1, to: fireDate) ?? fireDate
         }
 
-        // Still at most one nudge a day — only the copy adapts: protect a
-        // streak first, tease a memory second, generic last.
+        // Still at most one nudge a day — only the copy adapts: tease a
+        // memory first, generic otherwise.
         let content = UNMutableNotificationContent()
-        if streakToProtect >= 3 {
-            content.title = "Day \(streakToProtect + 1) is waiting"
-            content.body = "Two minutes keeps your streak alive."
-        } else if let teaser = burstTeaser {
+        if let teaser = burstTeaser {
             content.title = "Your memories are waiting"
             content.body = "\(teaser). Two minutes of swiping."
         } else {
