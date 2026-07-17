@@ -46,13 +46,20 @@ enum Theme {
     static let chipNavy   = Color(hex: 0x8C97C4)  // was aliased to `ink`,
     // which is now the (light) text color — needs its own identity.
 
-    // Type — plain SF Pro, no rounded design.
+    /// Ink for text/glyphs sitting on bright chip fills — white fails
+    /// WCAG AA on this palette's mid-tone accents (≈1.5–2.2:1); this
+    /// near-black clears 9:1 on every chip.
+    static let onChip = Color(hex: 0x121214)
+
+    // Type — plain SF Pro via text styles so everything tracks Dynamic
+    // Type. `display` keeps its size parameter for call-site
+    // compatibility; the buckets map legacy point sizes onto styles.
     static func display(_ size: CGFloat = 34) -> Font {
-        .system(size: size, weight: .bold)
+        size >= 32 ? Font.largeTitle.bold() : Font.title.bold()
     }
     static func wordmark(_ size: CGFloat = 34) -> Font { display(size) }
-    static let title   = Font.system(size: 22, weight: .semibold)
-    static let button  = Font.system(size: 17, weight: .semibold)
+    static let title   = Font.title2.weight(.semibold)
+    static let button  = Font.body.weight(.semibold)
 
     // Shape
     static let cardRadius: CGFloat = 28
@@ -139,7 +146,7 @@ struct BackButton: View {
             Image(systemName: "xmark")
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(Theme.ink)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .background(.ultraThinMaterial, in: Circle())
         }
         .accessibilityLabel(label)

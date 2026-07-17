@@ -236,17 +236,20 @@ struct GroupReviewView: View {
                     )
                     .shadow(color: Theme.ink.opacity(0.18), radius: 8, y: 4)
 
+                // White backing — the SF `.circle.fill` glyphs render
+                // their symbol as a cutout, so a dark backing made the
+                // star/trash read as black holes on the dark canvas.
                 if isMarked {
                     Image(systemName: "trash.circle.fill")
                         .font(.system(size: 18))
                         .foregroundColor(Theme.toss)
-                        .background(Circle().fill(Theme.stage))
+                        .background(Circle().fill(.white))
                         .padding(4)
                 } else if isKeeper {
                     Image(systemName: "star.circle.fill")
                         .font(.system(size: 18))
                         .foregroundColor(accent)
-                        .background(Circle().fill(Theme.stage))
+                        .background(Circle().fill(.white))
                         .padding(4)
                 }
             }

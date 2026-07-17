@@ -4,8 +4,9 @@
 //
 //  Home dashboard: freed-space stat, streak flame, a Cover Flow
 //  carousel of category cards (Memory Burst + every cleanup engine +
-//  Albums — the carousel IS the navigation), and the recent-photos
-//  strip. Dumb view — data and actions come from ContentView.
+//  Albums — the carousel IS the navigation), and a vertical grid of
+//  the whole library, newest first. Dumb view — data and actions come
+//  from ContentView.
 //
 //  The carousel is a custom ZStack + drag, not a ScrollView: the
 //  iOS 17 scroll-transition APIs are unavailable at our iOS 16 target,
@@ -33,8 +34,10 @@ struct HomeView: View {
     let blurryDetail: String
     let recentAssets: [PHAsset]
     let isLoading: Bool
+    let isLimitedAccess: Bool
 
     let onSettings: () -> Void
+    let onManageLimited: () -> Void
     let onStartBurst: () -> Void
     let onScreenshots: () -> Void
     let onDuplicates: () -> Void
@@ -51,6 +54,8 @@ struct HomeView: View {
     /// Which card faces forward, and the live drag offset in card-widths.
     @State private var selectedIndex = 0
     @State private var dragFraction: CGFloat = 0
+    /// Drives the front card's idle watermark breathing.
+    @State private var glyphBreath = false
 
     private let cardSize: CGFloat = 210
     /// Where the ±1 neighbor's center sits — past the enlarged front
@@ -70,6 +75,9 @@ struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 topBar.cascadeIn(appeared, slot: 0)
+                if isLimitedAccess {
+                    limitedAccessBanner.cascadeIn(appeared, slot: 1)
+                }
                 Text("Leftover")
                     .font(Theme.wordmark(34))
                     .foregroundColor(Theme.ink)
@@ -82,7 +90,10 @@ struct HomeView: View {
             .padding(.bottom, 32)
         }
         .background(Theme.stage)
-        .onAppear { appeared = true }
+        .onAppear {
+            appeared = true
+            glyphBreath = true
+        }
     }
 
     private var topBar: some View {
@@ -124,6 +135,9 @@ struct HomeView: View {
                     .foregroundColor(Theme.ink)
                     .frame(width: 36, height: 36)
                     .background(Circle().fill(Theme.surface))
+                    // Same 36pt visual, HIG-minimum 44pt hit area.
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(ScaleButtonStyle())
             .accessibilityLabel("Settings")
@@ -131,6 +145,25 @@ struct HomeView: View {
     }
 
     // MARK: - Cover Flow
+
+    // Without this, a limited-access user just sees mysteriously small
+    // counts with no explanation — the album picker has the same banner.
+    private var limitedAccessBanner: some View {
+        HStack(spacing: 8) {
+            Text("Showing only the photos you've shared.")
+                .font(.footnote)
+                .foregroundColor(Theme.dim)
+            Spacer(minLength: 8)
+            Button("Manage") { onManageLimited() }
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(Theme.cream)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Theme.surface)
+        )
+    }
 
     private struct CoverCard: Identifiable {
         let id: String
@@ -238,13 +271,17 @@ struct HomeView: View {
         // Labels only belong on the front card — side cards show a thin
         // sliver, so their labels would pile into unreadable overlap.
         let labelOpacity = Double(1 - min(absD / 0.5, 1))
+        // Content parallax: the watermark drifts against the drag so the
+        // card reads as a window; the front card's watermark breathes.
+        let parallax = reduceMotion ? 0 : clamped
+        let breathing = absD < 0.5 && !reduceMotion
 
         return VStack(spacing: 4) {
-            cardFace(card, labelOpacity: labelOpacity)
+            cardFace(card, labelOpacity: labelOpacity, parallax: parallax, breathing: breathing)
 
             // Glossy-floor reflection: the same face flipped, cropped to
             // its top edge (the card's bottom), fading out fast.
-            cardFace(card, labelOpacity: labelOpacity)
+            cardFace(card, labelOpacity: labelOpacity, parallax: parallax)
                 .scaleEffect(x: 1, y: -1)
                 .frame(width: cardSize, height: cardSize)
                 .frame(height: reflectionHeight, alignment: .top)
@@ -281,27 +318,45 @@ struct HomeView: View {
         .accessibilityHint(index == selectedIndex ? "Opens \(card.title)" : "Brings \(card.title) to the front")
     }
 
-    private func cardFace(_ card: CoverCard, labelOpacity: Double = 1) -> some View {
+    private func cardFace(_ card: CoverCard, labelOpacity: Double = 1,
+                          parallax: CGFloat = 0, breathing: Bool = false) -> some View {
         ZStack(alignment: .bottomLeading) {
-            // Solid chip color — white glyph and text carry the content,
-            // like the app's old filled-icon language. Dimmed cards go
-            // solid raised-gray instead.
+            // Chip color with a diagonal light: brighter top-leading,
+            // deeper bottom-trailing. Done as a white→black wash over the
+            // solid chip so every chip gets the same lighting for free.
             RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
                 .fill(card.dimmed ? Theme.raised : card.chip)
-            Image(systemName: card.icon)
-                .font(.system(size: 54, weight: .medium))
-                .foregroundColor(card.dimmed ? Theme.dim : .white.opacity(0.95))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Watermark: one huge copy of the glyph bleeding off the
+                // top-right corner, cropped by the card — composition,
+                // not decoration. It parallaxes gently against the drag
+                // and breathes on the front card. As an overlay it can
+                // never disturb the card's own layout.
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: card.icon)
+                        .font(.system(size: 190, weight: .bold))
+                        .foregroundColor(Theme.onChip.opacity(card.dimmed ? 0.06 : 0.12))
+                        .rotationEffect(.degrees(-8))
+                        .scaleEffect(breathing && glyphBreath ? 1.05 : 1, anchor: .center)
+                        .animation(breathing
+                                   ? .easeInOut(duration: 2.4).repeatForever(autoreverses: true)
+                                   : .default,
+                                   value: glyphBreath)
+                        .offset(x: cardSize * 0.36 - parallax * 16, y: -cardSize * 0.26)
+                }
+            if !card.dimmed {
+                LinearGradient(colors: [.white.opacity(0.30), .clear, .black.opacity(0.22)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(card.title)
                     .font(.system(.subheadline).weight(.semibold))
-                    .foregroundColor(card.dimmed ? Theme.dim : .white)
+                    .foregroundColor(card.dimmed ? Theme.dim : Theme.onChip)
                     .lineLimit(1)
                 if !card.detail.isEmpty {
                     Text(card.detail)
                         .font(.caption.monospacedDigit())
-                        .foregroundColor(card.dimmed ? Theme.dim : .white.opacity(0.85))
+                        .foregroundColor(card.dimmed ? Theme.dim : Theme.onChip.opacity(0.8))
                         .lineLimit(1)
                 }
             }
@@ -311,8 +366,14 @@ struct HomeView: View {
         .frame(width: cardSize, height: cardSize)
         .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
         .overlay(
+            // A lit top-leading edge instead of a flat hairline — the
+            // same light source as the gradient wash.
             RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
-                .strokeBorder(Theme.hairline, lineWidth: 1)
+                .strokeBorder(
+                    LinearGradient(colors: [.white.opacity(card.dimmed ? 0.10 : 0.38),
+                                            .white.opacity(0.03)],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing),
+                    lineWidth: 1)
         )
     }
 
@@ -351,20 +412,23 @@ struct HomeView: View {
                         .font(Theme.title)
                         .foregroundColor(Theme.ink)
 
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        // Lazy — this strip can hold the whole library now,
-                        // not just the last few, so only visible thumbnails
-                        // should ever materialize.
-                        LazyHStack(spacing: 8) {
-                            ForEach(Array(recentAssets.enumerated()), id: \.element.localIdentifier) { index, asset in
-                                PhotoThumbnailView(asset: asset)
-                                    .frame(width: 96, height: 128)
-                                    .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
-                                    .onTapGesture { onRecent(index) }
-                                    .accessibilityElement()
-                                    .accessibilityLabel("Recent photo \(index + 1)")
-                                    .accessibilityAddTraits(.isButton)
-                            }
+                    // The whole library, newest first, as a vertical grid
+                    // that scrolls with the page — every photo reachable,
+                    // not just the first strip-full. LazyVGrid only
+                    // materializes visible cells, and the shared caching
+                    // manager keeps scroll decoding cheap.
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 3),
+                              spacing: 4) {
+                        ForEach(Array(recentAssets.enumerated()), id: \.element.localIdentifier) { index, asset in
+                            Color.clear
+                                .aspectRatio(1, contentMode: .fit)
+                                .overlay(PhotoThumbnailView(asset: asset))
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                .onTapGesture { onRecent(index) }
+                                .accessibilityElement()
+                                .accessibilityLabel("Recent photo \(index + 1)")
+                                .accessibilityAddTraits(.isButton)
                         }
                     }
                 }

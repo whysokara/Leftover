@@ -2,7 +2,7 @@
 
 ## The vibe
 
-Near-black canvas, plain SF Pro type (no rounded/chunky display face), and thin outline SF Symbols sitting on softly tinted per-feature accent badges (`Theme.chipOrange/Blue/Purple/Pink/Teal/Yellow/Coral/Navy`) rather than bold white icons on solid saturated chips. Home's navigation is a **Cover Flow carousel** (July 2026, after the iPod-era Music app): one square card per category — Memory Burst, Duplicates, Similar Shots, Screenshots, Blurry, Large Videos, Albums — each an icon card (soft chip-color tint, large outline icon, icon badge + name + count in the corner; a photo-art version was tried and rolled back), the centered card facing forward, neighbors tilted away in 3D with a glossy floor reflection. The carousel is **endless** — it wraps in both directions, with cards fading out before the wrap point so the loop is seamless — and **adaptive**: categories whose scan/load reports "None" drop out entirely (pre-scan "Scan" and loading "…" states stay; Albums always stays; Memory Burst dims when done today). Labels render only on the front card. Tap the front card to open it, tap a side card to bring it forward, flick to move — snapping follows the flick's projected momentum, capped at 4 cards per flick. Implementation is a custom ZStack + drag (`selectedIndex` + `dragFraction`, `rotation3DEffect`, `Theme.settle` snapping) because the iOS 17 scroll-transition APIs are unavailable at the iOS 16 target; under Reduce Motion the 3D tilt flattens out but the carousel still works. Decisions on the swipe screen stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
+Near-black canvas, plain SF Pro type (no rounded/chunky display face), and thin outline SF Symbols sitting on softly tinted per-feature accent badges (`Theme.chipOrange/Blue/Purple/Pink/Teal/Yellow/Coral/Navy`) rather than bold white icons on solid saturated chips. Home's navigation is a **Cover Flow carousel** (July 2026, after the iPod-era Music app): one square card per category — Memory Burst, Duplicates, Similar Shots, Screenshots, Blurry, Large Videos, Albums — each an icon card (solid chip color, large glyph + name + count in dark ink — `Theme.onChip`, because white text fails WCAG AA on these mid-tone fills; photo-art and tinted faces were both tried and rolled back), the centered card facing forward, neighbors tilted away in 3D with a glossy floor reflection. The carousel is **endless** — it wraps in both directions, with cards fading out before the wrap point so the loop is seamless — and **adaptive**: categories whose scan/load reports "None" drop out entirely (pre-scan "Scan" and loading "…" states stay; Albums always stays; Memory Burst dims when done today). Labels render only on the front card. Tap the front card to open it, tap a side card to bring it forward, flick to move — snapping follows the flick's projected momentum, capped at 4 cards per flick. Implementation is a custom ZStack + drag (`selectedIndex` + `dragFraction`, `rotation3DEffect`, `Theme.settle` snapping) because the iOS 17 scroll-transition APIs are unavailable at the iOS 16 target; under Reduce Motion the 3D tilt flattens out but the carousel still works. Decisions on the swipe screen stay physical — cards tilt and get thrown, the screen edge glows the decision color, the stack advances underneath.
 
 Personality: quiet, confident, understated. The photos do the talking; the interface recedes further than it ever has.
 
@@ -10,7 +10,7 @@ Predecessors (see git history): "Light Table / Darkroom", a dark "Theater" syste
 
 ## Color
 
-**Dark palette** (July 2026, sixth iteration). `Theme.swift` tokens: `stage`=near-black #121214, `surface`=#1C1C1F (raised cards/rows), `ink`=off-white #F2F1F5, `dim`=#9A9AA2, `cream`=orange #FF9142 (accent — name historical), `keep`=teal #4FD1B9, `toss`=coral #FF6F68, plus the eight `chip*` colors — same hues as the light system, brightened for legibility against near-black.
+**Dark palette** (July 2026, sixth iteration). `Theme.swift` tokens: `stage`=near-black #121214, `surface`=#1C1C1F (raised cards/rows), `ink`=off-white #F2F1F5, `dim`=#9A9AA2, `cream`=orange #FF9142 (accent — name historical), `keep`=teal #4FD1B9, `toss`=coral #FF6F68, plus the eight `chip*` colors — same hues as the light system, brightened for legibility against near-black. **Text or glyphs sitting on a solid chip fill always use `Theme.onChip` (near-black)** — white on these mid-tone accents measures ≈1.5–2.2:1 and fails WCAG AA; onChip clears 9:1 on every chip.
 
 Icon badges: a soft tint of the feature's accent color (~16% opacity) behind a thin-weight, non-`.fill` SF Symbol in that same accent color — see `IconBadge` in `Theme.swift`. This replaced the old "bold filled icon, white, on a fully saturated chip" look everywhere except the swipe screen's action dock and inline photo-overlay badges (favorite star, keeper/marked badges), which keep their bold/filled treatment since they're status indicators over unpredictable photo content, not feature-identity chips.
 
@@ -20,15 +20,15 @@ Glass: `.ultraThinMaterial` + 1px `hairline` stroke, for the action dock, top-ba
 
 ## Typography
 
-No bundled fonts, no rounded design. **Plain SF Pro** for everything via `Theme` tokens.
+No bundled fonts, no rounded design. **Plain SF Pro via Dynamic Type text styles** — the `Theme` tokens map to scaling styles, never fixed point sizes, so accessibility sizes actually work.
 
 | Role | Spec |
 |---|---|
-| Wordmark / screen titles | SF Pro Bold, 34pt (`Theme.wordmark`/`Theme.display` — matches system large titles) |
-| Display (celebrations) | SF Pro Bold, 30pt (`Theme.display`) |
-| Section titles | SF Pro Semibold, 22pt (`Theme.title`) |
+| Wordmark / screen titles | `.largeTitle` bold (`Theme.wordmark`/`Theme.display(≥32)`) |
+| Display (celebrations) | `.largeTitle`/`.title` bold (`Theme.display`, bucketed by legacy size) |
+| Section titles | `.title2` semibold (`Theme.title`) |
 | Row titles / body | `.body` medium / regular |
-| Buttons | SF Pro Semibold, 17pt (`Theme.button`) |
+| Buttons | `.body` semibold (`Theme.button`) |
 | Row details, counters | `.footnote` / `.subheadline` + `.monospacedDigit()` — bare values, one line, like Settings |
 
 Counters animate with `.contentTransition(.numericText())` — digits roll, never jitter.

@@ -55,6 +55,7 @@ struct ContentView: View {
     @State private var videoCount = 0
     @State private var recentAssets: [PHAsset] = []
     @StateObject private var libraryScanner = LibraryScanner()
+    @StateObject private var libraryMonitor = LibraryChangeMonitor()
     @State private var showLargeVideos = false
     @State private var showDuplicates = false
     @State private var showSimilar = false
@@ -68,6 +69,7 @@ struct ContentView: View {
     @State private var cardOffset: CGSize = .zero
     @State private var isThrowingCard = false
     @State private var showExitAlert = false
+    @State private var showPillConfirm = false
     @State private var dealtIn = true
     @State private var burstTeaser: String? = nil
     @State private var deleteCelebration: DeleteCelebration?
@@ -164,7 +166,7 @@ struct ContentView: View {
                             .fill(Theme.cream)
                             .frame(width: 8, height: 8)
                         Text(snackbarMessage)
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(.subheadline.weight(.semibold))
                             .foregroundColor(Theme.ink)
                     }
                     .padding(.horizontal, 20)
@@ -203,11 +205,20 @@ struct ContentView: View {
             // every backgrounding so completing a burst cancels the nudge,
             // and feed it the freshest copy hooks.
             if phase == .background {
+                persistSessionIfNeeded()
                 notifications.burstTeaser = burstTeaser
                 notifications.streakToProtect =
                     (!stats.isBurstDoneToday && stats.streakCount >= 3) ? stats.streakCount : 0
                 notifications.reschedule(burstDoneToday: stats.isBurstDoneToday)
             }
+        }
+        .onChange(of: libraryMonitor.changeToken) { _ in
+            // The library changed under us (Photos delete, iCloud sync,
+            // AirDrop). Refresh Home's counts when idle; an active swipe
+            // session is left alone.
+            guard photoAuthStatus == .authorized || photoAuthStatus == .limited,
+                  !sessionActive, !isDeleting else { return }
+            loadHomeData()
         }
         .sheet(isPresented: $showSettings) {
             SettingsView(notifications: notifications, stats: stats)
@@ -351,7 +362,11 @@ struct ContentView: View {
                             .frame(width: 440, height: 440)
                     )
                     .onAppear {
-                        pulse = true
+                        // The only repeat-forever motion in the app —
+                        // stays still under Reduce Motion.
+                        if !UIAccessibility.isReduceMotionEnabled {
+                            pulse = true
+                        }
                     }
 
                 Text("Swipe right to keep, left to delete.")
@@ -439,7 +454,9 @@ struct ContentView: View {
                     blurryDetail: scanDetail(count: libraryScanner.blurryAssets.count),
                     recentAssets: recentAssets,
                     isLoading: isLoadingHome,
+                    isLimitedAccess: photoAuthStatus == .limited,
                     onSettings: { showSettings = true },
+                    onManageLimited: { presentLimitedLibraryPicker() },
                     onStartBurst: { startSession(.burst, assets: burstAssets) },
                     onScreenshots: { startSession(.screenshots, assets: screenshotAssets) },
                     onDuplicates: {
@@ -465,6 +482,11 @@ struct ContentView: View {
                 DispatchQueue.main.async {
                     self.photoAuthStatus = status
                     if status == .authorized || status == .limited {
+                        // Pick an interrupted session (killed in the
+                        // background with marks pending) back up first.
+                        if !self.sessionActive {
+                            _ = self.restoreSavedSessionIfAny()
+                        }
                         self.loadHomeData()
                         #if DEBUG
                         // Headless-verification hooks (simctl launch … -Leftover…).
@@ -577,17 +599,12 @@ struct ContentView: View {
             .navigationTitle("Albums")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button {
+                    // Same close idiom as every other full-screen list.
+                    BackButton {
                         withAnimation(Theme.settle) {
                             showAlbumPicker = false
                         }
-                    } label: {
-                        Label("Home", systemImage: "chevron.backward")
-                            .labelStyle(.titleAndIcon)
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundColor(Theme.ink)
                     }
-                    .accessibilityLabel("Back to home")
                 }
             }
             .onAppear {
@@ -766,6 +783,15 @@ struct ContentView: View {
         } message: {
             Text("They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
         }
+        .alert("Delete \(toBeDeleted.count) Photos?", isPresented: $showPillConfirm) {
+            Button("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))",
+                   role: .destructive) {
+                deleteMarkedPhotos()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
+        }
         .onAppear {
             DispatchQueue.main.async { dealtIn = true }
         }
@@ -810,10 +836,10 @@ struct ContentView: View {
             Button("Keep all") {
                 keepAll()
             }
-            .font(.system(size: 15, weight: .semibold))
+            .font(.subheadline.weight(.semibold))
             .foregroundColor(Theme.ink)
             .padding(.horizontal, 14)
-            .frame(height: 40)
+            .frame(height: 44)
             .background(.ultraThinMaterial, in: Capsule())
             .accessibilityHint("Keeps every remaining photo and ends the session")
         }
@@ -860,18 +886,24 @@ struct ContentView: View {
     }
 
     private var cardStack: some View {
-        ZStack {
-            ForEach(stackIndices.reversed(), id: \.self) { index in
-                photoCard(asset: photoAssets[index], depth: index - currentIndex)
+        // Greedy up to 470pt, shrinking on short devices (SE-class) so
+        // the dock never gets pushed off-screen by a fixed card height.
+        GeometryReader { geo in
+            ZStack {
+                ForEach(stackIndices.reversed(), id: \.self) { index in
+                    photoCard(asset: photoAssets[index],
+                              depth: index - currentIndex,
+                              height: max(geo.size.height - 30, 220))
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: 470)
+        .frame(maxHeight: 470)
     }
 
     // One card view for every depth so a peeking card animates smoothly
     // into the top position when the stack advances.
-    private func photoCard(asset: PHAsset, depth: Int) -> some View {
+    private func photoCard(asset: PHAsset, depth: Int, height: CGFloat) -> some View {
         let isTop = depth == 0
         let peekScale: CGFloat = depth == 1 ? 0.94 : 0.88
         let peekLift: CGFloat = depth == 1 ? -16 : -30
@@ -884,7 +916,7 @@ struct ContentView: View {
             PhotoAssetImage(asset: asset)
                 .padding(6)
         }
-            .frame(height: 440)
+            .frame(height: height)
             .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous))
             .overlay(
@@ -970,7 +1002,9 @@ struct ContentView: View {
 
     private var tossNowPill: some View {
         Button {
-            deleteMarkedPhotos()
+            // Confirm like every other delete path — this was the one
+            // unguarded destructive tap in the app.
+            showPillConfirm = true
         } label: {
             Text("Delete \(toBeDeleted.count) · \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
                 .font(.subheadline.weight(.semibold))
@@ -1017,7 +1051,7 @@ struct ContentView: View {
         Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.white)
+                .foregroundColor(Theme.onChip)
                 .frame(width: 46, height: 46)
                 .background(Circle().fill(chip))
         }
@@ -1106,6 +1140,64 @@ struct ContentView: View {
         } else {
             returnHome()
         }
+    }
+
+    // MARK: - Session resume (marks survive background kills)
+
+    private static let savedSessionKey = "savedSession.v1"
+
+    /// Snapshot an in-flight session with marks pending, so an app kill
+    /// in the background doesn't silently discard a long swipe run.
+    func persistSessionIfNeeded() {
+        guard sessionActive, !toBeDeleted.isEmpty else {
+            UserDefaults.standard.removeObject(forKey: Self.savedSessionKey)
+            return
+        }
+        let payload: [String: Any] = [
+            "assets": photoAssets.map(\.localIdentifier),
+            "marked": toBeDeleted.map(\.localIdentifier),
+            "index": currentIndex,
+            "origin": sessionOrigin == .albums ? "albums" : "home",
+        ]
+        UserDefaults.standard.set(payload, forKey: Self.savedSessionKey)
+    }
+
+    func clearSavedSession() {
+        UserDefaults.standard.removeObject(forKey: Self.savedSessionKey)
+    }
+
+    /// Rebuilds an interrupted session on launch. Only restores when
+    /// something was actually marked — an unmarked session costs nothing
+    /// to lose. Returns true if a session was restored.
+    func restoreSavedSessionIfAny() -> Bool {
+        guard let payload = UserDefaults.standard.dictionary(forKey: Self.savedSessionKey),
+              let ids = payload["assets"] as? [String],
+              let markedIDs = payload["marked"] as? [String],
+              let index = payload["index"] as? Int,
+              !ids.isEmpty, !markedIDs.isEmpty else { return false }
+        clearSavedSession()
+
+        // Fetch order isn't guaranteed — rebuild in the saved order and
+        // silently drop anything deleted since (marks must still exist).
+        var byID: [String: PHAsset] = [:]
+        PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
+            .enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
+        let assets = ids.compactMap { byID[$0] }
+        let marked = markedIDs.compactMap { byID[$0] }
+        guard !assets.isEmpty, !marked.isEmpty else { return false }
+
+        sessionSource = .album
+        sessionOrigin = (payload["origin"] as? String) == "albums" ? .albums : .home
+        photoAssets = assets
+        toBeDeleted = marked
+        totalSize = marked.reduce(Int64(0)) { $0 + assetFileSize($1) }
+        currentIndex = min(max(index, 0), assets.count)
+        currentAsset = assets.indices.contains(currentIndex) ? assets[currentIndex] : nil
+        showDeleteButton = currentIndex >= assets.count
+        dealtIn = true
+        sessionActive = true
+        showToast("Resumed where you left off.")
+        return true
     }
 
     func favoriteCurrent() {
@@ -1303,6 +1395,7 @@ struct ContentView: View {
     }
 
     func returnHome() {
+        clearSavedSession()
         sessionActive = false
         showAlbumPicker = false
         showBurstComplete = false
@@ -1329,6 +1422,12 @@ struct ContentView: View {
                 if success {
                     Haptics.success()
                     let count = toBeDeleted.count
+                    // Where to land afterwards: a delete at the end of the
+                    // stack means the session is finished; a mid-session
+                    // delete (the pill) resumes at the next unseen photo
+                    // instead of restarting the album from zero.
+                    let wasAtEnd = currentIndex >= photoAssets.count
+                    let resumeIndex = max(currentIndex - count, 0)
                     stats.recordDelete(count: count, freed: totalSize)
                     if count > 0 {
                         // Any session that tosses ≥ 1 photo marks today complete.
@@ -1344,13 +1443,27 @@ struct ContentView: View {
                     self.totalSize = 0
                     self.currentIndex = 0
                     self.showDeleteButton = false
+                    self.clearSavedSession()
                     // Keep scanner products honest after any swipe delete.
                     if libraryScanner.hasScanned {
                         libraryScanner.removeAssets(withIdentifiers: tossedIDs)
                     }
                     switch sessionSource {
                     case .album:
-                        self.loadPhotos(from: self.selectedAlbum)
+                        if wasAtEnd {
+                            withAnimation(Theme.settle) {
+                                if sessionOrigin == .albums {
+                                    resetToAlbumPicker()
+                                } else {
+                                    returnHome()
+                                }
+                            }
+                            loadHomeData()
+                        } else {
+                            self.loadPhotos(from: self.selectedAlbum,
+                                            startAt: resumeIndex,
+                                            origin: sessionOrigin)
+                        }
                     case .burst:
                         sessionActive = false
                         withAnimation(Theme.settle) { showBurstComplete = true }
@@ -1428,6 +1541,7 @@ struct ContentView: View {
     }
 
     func resetToAlbumPicker() {
+        clearSavedSession()
         self.sessionActive = false
         self.showAlbumPicker = true
         self.photoAssets = []
@@ -1441,6 +1555,8 @@ struct ContentView: View {
 
     func showToast(_ message: String) {
         snackbarMessage = message
+        // Toasts are transient — surface them to VoiceOver too.
+        UIAccessibility.post(notification: .announcement, argument: message)
         withAnimation(Theme.settle) {
             showSnackbar = true
         }
@@ -1607,6 +1723,8 @@ struct ContentView: View {
                 self.burstAssets = burst
                 self.recentAssets = recent
                 self.isLoadingHome = false
+                // Warm the strip's first screens of thumbnails.
+                ThumbCache.precache(Array(recent.prefix(80)))
             }
         }
     }
@@ -1702,6 +1820,7 @@ struct DeleteBlastView: View {
     @State private var swallowed = false
     @State private var glowPulse = false
     @State private var showNumber = false
+    @State private var finished = false
 
     var body: some View {
         ZStack {
@@ -1766,14 +1885,27 @@ struct DeleteBlastView: View {
         }
         .accessibilityElement()
         .accessibilityLabel("\(celebration.count) photos deleted")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint("Tap to dismiss")
+        // Celebration is a reward, not a toll booth — tap skips straight
+        // through. The guard keeps the still-pending auto-dismiss timer
+        // from firing onDone a second time.
+        .contentShape(Rectangle())
+        .onTapGesture { finish() }
         .onAppear(perform: run)
+    }
+
+    private func finish() {
+        guard !finished else { return }
+        finished = true
+        onDone()
     }
 
     private func run() {
         if UIAccessibility.isReduceMotionEnabled || celebration.images.isEmpty {
             swallowed = true
             withAnimation(Theme.pop) { showNumber = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { onDone() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { finish() }
             return
         }
 
@@ -1787,7 +1919,7 @@ struct DeleteBlastView: View {
             withAnimation(Theme.pop) { showNumber = true }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + swallowTime + 1.6) {
-            onDone()
+            finish()
         }
     }
 }
@@ -1842,6 +1974,53 @@ struct AlbumGridItem: View {
     }
 }
 
+
+/// Shared caching manager for small thumbnails — the Recent strip can
+/// hold an entire library, and PHCachingImageManager keeps decoded
+/// thumbs warm instead of re-decoding on every scroll pass. Options
+/// must match the per-request ones for the cache to be hit.
+enum ThumbCache {
+    static let manager = PHCachingImageManager()
+    // 240px covers a 3-column grid cell (~120pt) on a 2x display without
+    // visible softness, and stays cheap to decode for the smaller uses.
+    static let size = CGSize(width: 240, height: 240)
+
+    static func options() -> PHImageRequestOptions {
+        let options = PHImageRequestOptions()
+        // .opportunistic: a degraded image lands immediately, the good
+        // one follows — .fastFormat alone can fail with error 3303.
+        options.deliveryMode = .opportunistic
+        options.isSynchronous = false
+        options.isNetworkAccessAllowed = true
+        return options
+    }
+
+    static func precache(_ assets: [PHAsset]) {
+        manager.stopCachingImagesForAllAssets()
+        manager.startCachingImages(for: assets, targetSize: size,
+                                   contentMode: .aspectFill, options: options())
+    }
+}
+
+/// Watches the photo library for changes made outside the app (Photos
+/// deletes, iCloud sync, AirDrop arrivals) so Home's counts don't go
+/// stale until the next manual visit.
+final class LibraryChangeMonitor: NSObject, ObservableObject, PHPhotoLibraryChangeObserver {
+    @Published var changeToken = 0
+
+    override init() {
+        super.init()
+        PHPhotoLibrary.shared().register(self)
+    }
+
+    deinit {
+        PHPhotoLibrary.shared().unregisterChangeObserver(self)
+    }
+
+    func photoLibraryDidChange(_ changeInstance: PHChange) {
+        DispatchQueue.main.async { self.changeToken += 1 }
+    }
+}
 
 struct PhotoAssetImage: View {
     let asset: PHAsset
@@ -1898,18 +2077,11 @@ struct PhotoThumbnailView: View {
             }
         }
         .onAppear {
-            let options = PHImageRequestOptions()
-            // .opportunistic: a degraded image lands immediately, the good
-            // one follows — .fastFormat alone can fail with error 3303.
-            options.deliveryMode = .opportunistic
-            options.isSynchronous = false
-            options.isNetworkAccessAllowed = true
-
-            PHImageManager.default().requestImage(
+            ThumbCache.manager.requestImage(
                 for: asset,
-                targetSize: CGSize(width: 160, height: 160),
+                targetSize: ThumbCache.size,
                 contentMode: .aspectFill,
-                options: options
+                options: ThumbCache.options()
             ) { result, _ in
                 guard let result else { return }
                 DispatchQueue.main.async {
