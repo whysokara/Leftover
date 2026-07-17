@@ -43,13 +43,20 @@ struct HomeView: View {
 
     let screenshotCount: Int
     let videoCount: Int
+    let duplicateBytes: Int64
+    let similarBytes: Int64
+    let screenshotBytes: Int64
+    let blurryBytes: Int64
+    let videoBytes: Int64
     let duplicateDetail: String
     let similarDetail: String
     let blurryDetail: String
     let recentAssets: [PHAsset]
     let isLoading: Bool
     let isLimitedAccess: Bool
+    let healthScore: HealthScore
 
+    let onHealth: () -> Void
     let onSettings: () -> Void
     let onManageLimited: () -> Void
     let onStartBurst: () -> Void
@@ -64,6 +71,8 @@ struct HomeView: View {
 
     @State private var flameScale: CGFloat = 1.0
     @State private var appeared = false
+    @State private var healthPulse = false
+    @State private var lastHealthScore = 100
 
     /// Which card faces forward, and the live drag offset in card-widths.
     @State private var selectedIndex = 0
@@ -110,8 +119,11 @@ struct HomeView: View {
     // tucked in next to the settings gear.
     private var header: some View {
         HStack(spacing: 12) {
+            // A step below largeTitle so the wordmark and the trailing
+            // stats read as one balanced row instead of a giant next to
+            // a whisper.
             Text("Leftover")
-                .font(Theme.wordmark(34))
+                .font(Theme.wordmark(28))
                 .foregroundColor(Theme.ink)
                 // Never wrap — compress slightly instead when Dynamic
                 // Type or the stat chips squeeze the row.
@@ -124,6 +136,8 @@ struct HomeView: View {
             if freedBytes > 0 || streakCount > 0 {
                 statsRow
             }
+
+            healthChip
 
             Button(action: onSettings) {
                 Image(systemName: "gearshape")
@@ -140,13 +154,54 @@ struct HomeView: View {
         }
     }
 
-    // Both stats share one compact capsule — two separate chips crowded
-    // the wordmark off its line.
+    /// The headline mechanic: a tiny score ring + number. Tapping opens
+    /// the breakdown sheet; the number pops when the score improves.
+    private var healthChip: some View {
+        Button(action: onHealth) {
+            HStack(spacing: 5) {
+                ZStack {
+                    Circle()
+                        .stroke(Theme.hairline, lineWidth: 3)
+                    Circle()
+                        .trim(from: 0, to: Double(healthScore.score) / 100)
+                        .stroke(healthScore.color,
+                                style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                }
+                .frame(width: 18, height: 18)
+
+                Text("\(healthScore.score)")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .contentTransition(.numericText())
+                    .foregroundColor(Theme.ink)
+                    .opacity(healthScore.isProvisional ? 0.6 : 1)
+            }
+            .scaleEffect(healthPulse ? 1.25 : 1)
+            .frame(height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ScaleButtonStyle())
+        .animation(Theme.settle, value: healthScore.score)
+        .onChange(of: healthScore.score) { newScore in
+            if newScore > lastHealthScore {
+                withAnimation(Theme.pop) { healthPulse = true }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    withAnimation(Theme.settle) { healthPulse = false }
+                }
+            }
+            lastHealthScore = newScore
+        }
+        .accessibilityLabel("Library health \(healthScore.score) out of 100\(healthScore.isProvisional ? ", partial score" : "")")
+        .accessibilityHint("Shows what's affecting your score")
+    }
+
+    // Bare stats beside the gear — no chrome, sized to sit comfortably
+    // against the wordmark.
     private var statsRow: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 7) {
             if freedBytes > 0 {
                 Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
-                    .font(.footnote.weight(.semibold).monospacedDigit())
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
                     .lineLimit(1)
                     .fixedSize()
                     .contentTransition(.numericText())
@@ -164,11 +219,11 @@ struct HomeView: View {
             if streakCount > 0 {
                 HStack(spacing: 3) {
                     Image(systemName: "flame")
-                        .font(.footnote.weight(.semibold))
+                        .font(.subheadline.weight(.semibold))
                         .foregroundColor(Theme.cream)
                         .scaleEffect(flameScale)
                     Text("\(streakCount)")
-                        .font(.footnote.weight(.semibold).monospacedDigit())
+                        .font(.subheadline.weight(.semibold).monospacedDigit())
                         .foregroundColor(Theme.ink)
                 }
                 .accessibilityElement(children: .combine)
@@ -182,9 +237,6 @@ struct HomeView: View {
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .frame(height: 32)
-        .background(Capsule().fill(Theme.surface))
     }
 
     // MARK: - Cover Flow
@@ -229,20 +281,20 @@ struct HomeView: View {
                       title: "Memory Burst", detail: burstDetail,
                       dimmed: burstDimmed, previewAssets: previews.burst, action: onStartBurst),
             CoverCard(id: "duplicates", icon: "square.on.square", chip: Theme.chipTeal,
-                      title: "Duplicates", detail: duplicateDetail,
+                      title: "Duplicates", detail: scopeDetail(duplicateDetail, duplicateBytes),
                       dimmed: false, previewAssets: previews.duplicates, action: onDuplicates),
             CoverCard(id: "similar", icon: "square.stack.3d.down.right", chip: Theme.chipPink,
-                      title: "Similar Shots", detail: similarDetail,
+                      title: "Similar Shots", detail: scopeDetail(similarDetail, similarBytes),
                       dimmed: false, previewAssets: previews.similar, action: onSimilar),
             CoverCard(id: "screenshots", icon: "camera.viewfinder", chip: Theme.chipBlue,
-                      title: "Screenshots", detail: countLabel(screenshotCount),
+                      title: "Screenshots", detail: scopeDetail(countLabel(screenshotCount), screenshotBytes),
                       dimmed: false, previewAssets: previews.screenshots,
                       action: screenshotCount > 0 ? onScreenshots : { onComingSoon("No screenshots.") }),
             CoverCard(id: "blurry", icon: "wand.and.rays", chip: Theme.chipYellow,
-                      title: "Blurry", detail: blurryDetail,
+                      title: "Blurry", detail: scopeDetail(blurryDetail, blurryBytes),
                       dimmed: false, previewAssets: previews.blurry, action: onBlurry),
             CoverCard(id: "videos", icon: "film", chip: Theme.chipCoral,
-                      title: "Large Videos", detail: countLabel(videoCount),
+                      title: "Large Videos", detail: scopeDetail(countLabel(videoCount), videoBytes),
                       dimmed: false, previewAssets: previews.videos,
                       action: videoCount > 0 ? onLargeVideos : { onComingSoon("No videos in your library.") }),
             CoverCard(id: "albums", icon: "folder", chip: Theme.chipNavy,
@@ -374,11 +426,19 @@ struct HomeView: View {
         return ZStack(alignment: .bottomLeading) {
             Group {
                 if photoBacked {
+                    // Photos stay recognizable: a light soft-focus blur
+                    // and a thin unifying tint, with the real darkness
+                    // concentrated in a bottom gradient under the label —
+                    // the full-card frost hid the content entirely.
                     previewCollage(card.previewAssets)
+                        .blur(radius: 2.5, opaque: true)
                         .saturation(card.dimmed ? 0.4 : 1)
-                        // Legibility stack: system frost + dark scrim.
-                        .overlay(Rectangle().fill(.ultraThinMaterial))
-                        .overlay(Color.black.opacity(card.dimmed ? 0.55 : 0.42))
+                        .overlay(Color.black.opacity(card.dimmed ? 0.45 : 0.18))
+                        .overlay(
+                            LinearGradient(colors: [.black.opacity(0.75), .clear],
+                                           startPoint: .bottom,
+                                           endPoint: UnitPoint(x: 0.5, y: 0.45))
+                        )
                 } else {
                     RoundedRectangle(cornerRadius: Theme.cardRadius, style: .continuous)
                         .fill(card.dimmed ? Theme.raised : card.chip)
@@ -492,6 +552,14 @@ struct HomeView: View {
         if isLoading && count == 0 { return "…" }
         if count == 0 { return "None" }
         return count.formatted()
+    }
+
+    /// Appends the category's clearing scope to its count — "132 ·
+    /// frees 1.2 GB" — once a real size is known. Placeholder states
+    /// ("Scan", "None", "…") pass through untouched.
+    private func scopeDetail(_ base: String, _ bytes: Int64) -> String {
+        guard bytes > 0, base != "Scan", base != "None", base != "…" else { return base }
+        return "\(base) · frees \(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file))"
     }
 
     private var recentStrip: some View {

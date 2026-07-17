@@ -161,17 +161,20 @@ transitions; no `NeonCardMark` (the mark keeps its three placements).
    dock off.
 4. "Delete {size}" capsule appears above the dock only when something is
    marked (size only — the counter row already has the count).
-5. Action dock: solid-chip circles (46pt) with `onChip` glyphs — trash
-   (coral) · undo (navy) · star (yellow when favorited) · checkmark (teal).
-   Dock buttons drive the *same* code path as gestures (`throwCard`).
+5. Action dock: a single undo button (solid navy chip, 46pt, `onChip`
+   glyph) — the gestures *are* the interface, and undo is the one thing a
+   gesture can't do. Delete/keep have no visible buttons; VoiceOver users
+   get them as custom accessibility actions on the card, driving the same
+   `throwCard` code path.
 
 The signature moment: drag tilts the card from its base, the matching screen
 edge glows with drag distance, release throws the card along its vector while
 the next springs forward. The edge glow is the only decision indicator — no
-stamps. Double-tap favorites (high-priority gesture so the drag can't eat
-it). Undo is multi-level, flying the card back in from the side it left.
-Left-edge swipe goes back on every full-screen list and the swipe screen
-(`edgeSwipeBack`, a real `UIScreenEdgePanGestureRecognizer`).
+stamps. Already-favorited photos show a passive star badge (display only —
+the in-app favoriting action was removed). Undo is multi-level, flying the
+card back in from the side it left. Left-edge swipe goes back on every
+full-screen list and the swipe screen (`edgeSwipeBack`, a real
+`UIScreenEdgePanGestureRecognizer`).
 
 ## The delete flow (one flow, everywhere)
 
@@ -207,6 +210,28 @@ screenshots/blurry return Home.
 - **Scan progress:** breathing ring, brand-gradient arc, honest two-phase
   progress (hash pass = first half, match-finding = second half, "Finding
   matches…" label) — never a frozen 100%.
+
+## Health & trophies (the retention layer)
+
+All local, all honest — nothing invented, no points/currency, no servers.
+
+- **Library Health Score** (`HealthScore`, Gamification.swift): 0–100,
+  computed from real scanner output — capped, ratio-based penalties
+  (duplicates 30 · stale screenshots 25 · similar 20 · blurry 15 · large
+  videos 10, each scaling with sqrt of the clutter proportion so library
+  size doesn't skew it). Grades A≥90 / B≥75 / C≥60 / D≥40 / E. Colors:
+  ≥85 `keep`, ≥60 `chipYellow`, else `toss` — the ring is stroked in the
+  score's color, **never** the brand gradient (that stays reserved).
+  Provisional until the first scan. Lives as a tiny ring+number chip in
+  Home's header (pops on improvement); tapping opens the breakdown
+  sheet, where every penalty row deep-links into the screen that fixes
+  it. Streaks punish missing a day; the score gives a reason to return
+  after a lapse — they complement each other.
+- **Trophy shelf** (`TrophyShelfView`): the eight milestones
+  (100/1k/10k deleted · 1/5/10 GB freed · 7/30-day streaks) as a badge
+  grid — achieved in full chip color, locked dimmed with a lock and the
+  goal stated. Reached from Settings → About ("N of 8"). Backed by the
+  same `milestonesShown` history the one-shot moments always wrote.
 
 ## The mascot
 

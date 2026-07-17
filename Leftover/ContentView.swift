@@ -30,13 +30,7 @@ struct ContentView: View {
     @State private var allPhotosThumbnail: UIImage?
     @State private var allPhotosCount: Int = 0
     @State private var sortedAlbums: [AlbumMeta] = []
-    @State private var showHeartAnimation = false
-    @State private var heartScale: CGFloat = 1.0
-    @State private var isAddingToFavorites: Bool = true
-    @State private var shakeOffset: CGFloat = 0
     @State private var pulse = false
-    @State private var heartRotation: Double = 0
-    @State private var heartOpacity: Double = 1.0
     // The splash shows on every cold launch: first launch keeps the
     // Start button, returning launches auto-dissolve into home.
     @State private var showSplashScreen = true
@@ -57,6 +51,14 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var isLoadingHome = false
     @State private var screenshotAssets: [PHAsset] = []
+    /// Bytes the screenshot pile would free — computed in a trailing
+    /// background pass so the first Home paint never waits on
+    /// PHAssetResource lookups for thousands of assets.
+    @State private var screenshotBytes: Int64 = 0
+    /// Screenshots older than 30 days — a health-score input.
+    @State private var staleScreenshotCount = 0
+    @State private var showHealth = false
+    @State private var showTrophies = false
     @State private var burstAssets: [PHAsset] = []
     @State private var videoCount = 0
     @State private var recentAssets: [PHAsset] = []
@@ -248,6 +250,32 @@ struct ContentView: View {
                 withAnimation(Theme.settle) { showOnboarding = true }
             }
         }
+        .sheet(isPresented: $showHealth) {
+            HealthDetailView(health: healthScore) { partID in
+                // Deep-link: close the sheet, then open the screen that
+                // fixes that part of the score.
+                showHealth = false
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                    switch partID {
+                    case "duplicates":
+                        withAnimation(Theme.settle) { showDuplicates = true }
+                    case "similar":
+                        withAnimation(Theme.settle) { showSimilar = true }
+                    case "blurry":
+                        openBlurry()
+                    case "screenshots":
+                        startSession(.screenshots, assets: screenshotAssets)
+                    case "videos":
+                        withAnimation(Theme.settle) { showLargeVideos = true }
+                    default:
+                        break
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showTrophies) {
+            TrophyShelfView(achieved: stats.achievedMilestones)
+        }
         .onChange(of: libraryScanner.hasScanned) { done in
             // A scan launched from the Blurry row flows straight into
             // the review session once it finishes.
@@ -370,6 +398,19 @@ struct ContentView: View {
         return count.formatted()
     }
 
+    /// Recomputed from live scanner/home state — deleting clutter or
+    /// receiving new clutter moves it on the next Home refresh.
+    private var healthScore: HealthScore {
+        HealthScore.compute(
+            libraryCount: recentAssets.count,
+            duplicateCount: libraryScanner.duplicateGroups.reduce(0) { $0 + max($1.assets.count - 1, 0) },
+            similarCount: libraryScanner.similarGroups.reduce(0) { $0 + max($1.assets.count - 1, 0) },
+            blurryCount: libraryScanner.blurryAssets.count,
+            staleScreenshots: staleScreenshotCount,
+            videoBytes: largeVideos.reduce(0) { $0 + $1.size },
+            hasScanned: libraryScanner.hasScanned)
+    }
+
     var splashScreenView: some View {
         VStack {
             Spacer()
@@ -489,12 +530,19 @@ struct ContentView: View {
                     ),
                     screenshotCount: screenshotAssets.count,
                     videoCount: videoCount,
+                    duplicateBytes: libraryScanner.duplicateGroups.reduce(0) { $0 + $1.wastedBytes },
+                    similarBytes: libraryScanner.similarGroups.reduce(0) { $0 + $1.wastedBytes },
+                    screenshotBytes: screenshotBytes,
+                    blurryBytes: libraryScanner.blurryBytes,
+                    videoBytes: largeVideos.reduce(0) { $0 + $1.size },
                     duplicateDetail: scanDetail(count: libraryScanner.duplicateGroups.count),
                     similarDetail: scanDetail(count: libraryScanner.similarGroups.count),
                     blurryDetail: scanDetail(count: libraryScanner.blurryAssets.count),
                     recentAssets: recentAssets,
                     isLoading: isLoadingHome,
                     isLimitedAccess: photoAuthStatus == .limited,
+                    healthScore: healthScore,
+                    onHealth: { showHealth = true },
                     onSettings: { showSettings = true },
                     onManageLimited: { presentLimitedLibraryPicker() },
                     onStartBurst: { startSession(.burst, assets: burstAssets) },
@@ -543,6 +591,10 @@ struct ContentView: View {
                             self.openBlurry()
                         } else if args.contains("-LeftoverOpenSettings") {
                             self.showSettings = true
+                        } else if args.contains("-LeftoverOpenHealth") {
+                            self.showHealth = true
+                        } else if args.contains("-LeftoverOpenTrophies") {
+                            self.showTrophies = true
                         } else if args.contains("-LeftoverShowOnboarding") {
                             self.onboardingInitialStep = 0
                             self.showOnboarding = true
@@ -981,20 +1033,6 @@ struct ContentView: View {
                         .shadow(color: .black.opacity(0.5), radius: 4)
                 }
             }
-            .overlay(
-                Group {
-                    if isTop && showHeartAnimation {
-                        Image(systemName: "heart.fill")
-                            .resizable()
-                            .foregroundColor(Theme.cream)
-                            .frame(width: 34, height: 34)
-                            .scaleEffect(heartScale)
-                            .rotationEffect(.degrees(heartRotation))
-                            .offset(x: shakeOffset)
-                            .opacity(heartOpacity)
-                    }
-                }
-            )
             .shadow(color: .black.opacity(isTop ? 0.55 : 0.3),
                     radius: isTop ? 22 : 10, y: isTop ? 12 : 6)
             .scaleEffect(isTop ? 1 : peekScale)
@@ -1006,16 +1044,6 @@ struct ContentView: View {
                             anchor: .bottom)
             .zIndex(Double(3 - depth))
             .gesture(dragGesture, including: isTop && !isThrowingCard ? .all : .none)
-            // highPriorityGesture (not onTapGesture) so the double-tap
-            // unambiguously wins over the drag recognizer above, instead
-            // of relying only on the drag's minimum-distance threshold —
-            // belt and suspenders against real fingers moving slightly
-            // between the two taps.
-            .highPriorityGesture(
-                TapGesture(count: 2).onEnded {
-                    if isTop { favoriteCurrent() }
-                }
-            )
             // Deal-in: cards rise from the bottom with a stagger when a
             // session starts.
             .offset(y: dealtIn ? 0 : (UIAccessibility.isReduceMotionEnabled ? 0 : 560))
@@ -1026,8 +1054,16 @@ struct ContentView: View {
             .accessibilityLabel(isTop
                 ? (asset.isFavorite ? "Photo \(currentIndex + 1), favorited" : "Photo \(currentIndex + 1)")
                 : "Upcoming photo")
-            .accessibilityHint(isTop ? "Double tap to favorite. Swipe left to toss, right to keep." : "")
+            .accessibilityHint(isTop ? "Swipe left to delete, right to keep." : "")
             .accessibilityAddTraits(.isImage)
+            // Dock-free delete/keep for VoiceOver users, who can't
+            // perform the card drag.
+            .accessibilityAction(named: "Delete") {
+                if isTop { throwCard(toss: true) }
+            }
+            .accessibilityAction(named: "Keep") {
+                if isTop { throwCard(toss: false) }
+            }
             .accessibilityHidden(!isTop)
     }
 
@@ -1069,26 +1105,15 @@ struct ContentView: View {
         .accessibilityLabel("Delete \(toBeDeleted.count) selected photos, freeing \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
     }
 
+    // The gestures are the whole interface — the dock keeps only the
+    // one thing a gesture can't do: undo.
     private var actionDock: some View {
-        HStack(spacing: 14) {
-            dockButton("trash.fill", chip: Theme.chipCoral, label: "Delete") {
-                throwCard(toss: true)
-            }
-            dockButton("arrow.uturn.left",
-                       chip: currentIndex > 0 ? Theme.chipNavy : Theme.dim.opacity(0.45),
-                       label: "Undo") {
-                undoLast()
-            }
-            .disabled(currentIndex == 0)
-            dockButton(currentAsset?.isFavorite == true ? "star.fill" : "star",
-                       chip: currentAsset?.isFavorite == true ? Theme.chipYellow : Theme.dim.opacity(0.45),
-                       label: "Favorite") {
-                favoriteCurrent()
-            }
-            dockButton("checkmark", chip: Theme.chipTeal, label: "Keep") {
-                throwCard(toss: false)
-            }
+        dockButton("arrow.uturn.left",
+                   chip: currentIndex > 0 ? Theme.chipNavy : Theme.dim.opacity(0.45),
+                   label: "Undo") {
+            undoLast()
         }
+        .disabled(currentIndex == 0)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(Theme.surface, in: Capsule())
@@ -1249,51 +1274,6 @@ struct ContentView: View {
         return true
     }
 
-    func favoriteCurrent() {
-        Haptics.impact(.light)
-        guard let asset = currentAsset else { return }
-        isAddingToFavorites = !asset.isFavorite
-        showHeartAnimation = true
-
-        if isAddingToFavorites {
-            heartOpacity = 1.0
-            heartRotation = 0
-            heartScale = 0.8
-
-            withAnimation(Theme.pop) {
-                heartScale = 1.2
-            }
-        } else {
-            heartScale = 1.0
-            heartOpacity = 0.6
-
-            withAnimation(Animation.linear(duration: 0.15).repeatCount(4, autoreverses: true)) {
-                shakeOffset = 6
-                heartRotation = -10
-            }
-
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                shakeOffset = 0
-                heartRotation = 0
-
-                withAnimation(.easeInOut(duration: 0.4)) {
-                    heartScale = 0.6
-                    heartOpacity = 0.0
-                }
-            }
-        }
-
-        toggleFavorite(asset)
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            showHeartAnimation = false
-            heartOpacity = 0.7
-            heartScale = 0.8
-            heartRotation = 0
-            shakeOffset = 0
-        }
-    }
-
     private var sessionEndTitle: String {
         switch sessionSource {
         case .album:       return "Album Reviewed"
@@ -1410,33 +1390,6 @@ struct ContentView: View {
         .frame(height: 120)
         .accessibilityHidden(true) // decorative; the text carries the info
     }
-
-    func toggleFavorite(_ asset: PHAsset) {
-        let wasFavorite = asset.isFavorite
-
-        PHPhotoLibrary.shared().performChanges({
-            let request = PHAssetChangeRequest(for: asset)
-            request.isFavorite = !wasFavorite
-        }) { success, error in
-            DispatchQueue.main.async {
-                if success {
-                    // PHAsset objects are immutable snapshots — re-fetch so
-                    // isFavorite reads stay correct when this photo is revisited.
-                    if let refreshed = PHAsset.fetchAssets(withLocalIdentifiers: [asset.localIdentifier], options: nil).firstObject {
-                        if let index = photoAssets.firstIndex(where: { $0.localIdentifier == asset.localIdentifier }) {
-                            photoAssets[index] = refreshed
-                        }
-                        if currentAsset?.localIdentifier == asset.localIdentifier {
-                            currentAsset = refreshed
-                        }
-                    }
-                } else {
-                    showToast("Couldn’t update favorite.")
-                }
-            }
-        }
-    }
-
 
     func moveToNextPhoto() {
         if currentIndex >= photoAssets.count {
@@ -1750,6 +1703,12 @@ struct ContentView: View {
                 }
             }
 
+            // Health-score input: screenshots that have sat for a month.
+            let staleCutoff = calendar.date(byAdding: .day, value: -30, to: now) ?? now
+            let staleScreenshots = screenshots.filter {
+                ($0.creationDate ?? .distantPast) < staleCutoff
+            }.count
+
             // The Recent strip shows the whole library, newest first —
             // no cap. The burst-fallback chain below still only ever
             // takes the first 10 of this, so it stays a small daily dose.
@@ -1800,6 +1759,7 @@ struct ContentView: View {
             DispatchQueue.main.async {
                 self.burstTeaser = teaser
                 self.screenshotAssets = screenshots
+                self.staleScreenshotCount = staleScreenshots
                 self.videoCount = videos
                 self.largeVideos = bigOnes.isEmpty ? videoItems : bigOnes
                 self.largeVideosShowingAll = bigOnes.isEmpty
@@ -1808,6 +1768,13 @@ struct ContentView: View {
                 self.isLoadingHome = false
                 // Warm the strip's first screens of thumbnails.
                 ThumbCache.precache(Array(recent.prefix(80)))
+
+                // Trailing pass: size the screenshot pile without holding
+                // up the paint above (sizes NSCache after first lookup).
+                DispatchQueue.global(qos: .utility).async {
+                    let bytes = screenshots.reduce(Int64(0)) { $0 + LibraryScanner.fileSize($1) }
+                    DispatchQueue.main.async { self.screenshotBytes = bytes }
+                }
             }
         }
     }

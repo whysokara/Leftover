@@ -1,0 +1,11 @@
+{
+  "enabledPlugins": {},
+  "extraKnownMarketplaces": {
+    "cpd-patrickserrano-skills-project": {
+      "source": {
+        "source": "directory",
+        "path": "/Users/kara/Developer/Leftover/.claude/.cpd-wrappers/patrickserrano-skills-project"
+      }
+    }
+  }
+}

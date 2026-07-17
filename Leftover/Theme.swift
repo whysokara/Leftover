@@ -57,7 +57,13 @@ enum Theme {
     static func display(_ size: CGFloat = 34) -> Font {
         size >= 32 ? Font.largeTitle.bold() : Font.title.bold()
     }
-    static func wordmark(_ size: CGFloat = 34) -> Font { display(size) }
+    /// The wordmark speaks in New York serif — a distinct editorial
+    /// voice for the brand name only; everything else stays SF Pro.
+    static func wordmark(_ size: CGFloat = 34) -> Font {
+        size >= 32
+            ? Font.system(.largeTitle, design: .serif).bold()
+            : Font.system(.title, design: .serif).bold()
+    }
     static let title   = Font.title2.weight(.semibold)
     static let button  = Font.body.weight(.semibold)
 

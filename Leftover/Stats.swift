@@ -27,6 +27,12 @@ final class Stats: ObservableObject {
     @Published var pendingMilestone: String? = nil
     @Published var pendingRecap: String? = nil
 
+    /// Every milestone ever hit — the trophy shelf's data source.
+    /// Backed by the same "milestonesShown" key checkMilestones has
+    /// always written, so existing installs keep their history.
+    @Published private(set) var achievedMilestones: Set<String>
+
+
     private var weekTossed: Int
     private var weekFreed: Int64
 
@@ -53,6 +59,7 @@ final class Stats: ObservableObject {
         weekTossed = defaults.integer(forKey: "weekTossed")
         weekFreed = Int64(defaults.integer(forKey: "weekFreed"))
         pendingRecap = defaults.string(forKey: "pendingRecap")
+        achievedMilestones = Set(defaults.stringArray(forKey: "milestonesShown") ?? [])
         rolloverWeekIfNeeded()
     }
 
@@ -132,6 +139,7 @@ final class Stats: ObservableObject {
             if pendingMilestone == nil { pendingMilestone = name }
         }
         defaults.set(Array(shown), forKey: "milestonesShown")
+        achievedMilestones = shown
     }
 
     func clearMilestone() {

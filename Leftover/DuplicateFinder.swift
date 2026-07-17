@@ -31,6 +31,10 @@ final class LibraryScanner: ObservableObject {
     @Published var duplicateGroups: [DuplicateGroup] = []
     @Published var similarGroups: [DuplicateGroup] = []
     @Published var blurryAssets: [PHAsset] = []
+    /// Total bytes the blurry set would free — computed with the scan so
+    /// Home can show the clearing scope without touching PHAssetResource
+    /// on the main thread.
+    @Published var blurryBytes: Int64 = 0
     @Published var hasScanned = false
     /// True while grouping runs after the per-photo hash pass finishes —
     /// lets the UI say something other than a frozen 100%.
@@ -146,11 +150,13 @@ final class LibraryScanner: ObservableObject {
                 .filter { $0.1.s < Self.blurThreshold }
                 .sorted { $0.1.s < $1.1.s }
                 .map(\.0)
+            let blurryTotal = blurry.reduce(Int64(0)) { $0 + Self.fileSize($1) }
 
             DispatchQueue.main.async {
                 self.duplicateGroups = duplicates
                 self.similarGroups = similar
                 self.blurryAssets = blurry
+                self.blurryBytes = blurryTotal
                 self.isScanning = false
                 self.isGrouping = false
                 self.hasScanned = true
@@ -164,6 +170,8 @@ final class LibraryScanner: ObservableObject {
         duplicateGroups = Self.pruning(duplicateGroups, removing: ids)
         similarGroups = Self.pruning(similarGroups, removing: ids)
         blurryAssets.removeAll { ids.contains($0.localIdentifier) }
+        // Sizes are NSCache-cached at this point, so the re-sum is cheap.
+        blurryBytes = blurryAssets.reduce(Int64(0)) { $0 + Self.fileSize($1) }
         for id in ids {
             cache.removeValue(forKey: id)
             Self.fileSizeCache.removeObject(forKey: id as NSString)

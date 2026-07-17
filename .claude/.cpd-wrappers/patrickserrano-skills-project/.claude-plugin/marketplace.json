@@ -1,0 +1,16 @@
+{
+  "name": "cpd-patrickserrano-skills-project",
+  "owner": {
+    "name": "ClaudePluginHub CLI"
+  },
+  "plugins": [
+    {
+      "name": "ios-swift-skills",
+      "source": {
+        "source": "github",
+        "repo": "patrickserrano/skills"
+      },
+      "strict": true
+    }
+  ]
+}

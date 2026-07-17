@@ -29,16 +29,16 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 - ✅ **Hands-on onboarding** — practice the swipe on demo cards before the app ever touches your library
 - ✅ **Card stack** — the next photos peek behind the one you're judging
 - ✅ **Swipe left to delete**, right to keep — with real throw physics and edge glows
-- ✅ **Action dock** for tap-first users (delete / undo / favorite / keep) — same logic as the gestures
 - ✅ **Keep all**, progress bar, and live keep/delete counters
 - ✅ **Undo** any swipe — nothing is deleted until you confirm
-- ✅ **Double-tap to favorite** a photo without leaving the flow
 - ✅ **One consistent delete flow** — every delete confirms once, shows the space you're freeing, reminds you about the 30-day Recently Deleted safety net, then celebrates
 - ✅ **Sessions survive interruptions** — get killed mid-sweep with photos marked, and the app resumes right where you left off
 
 ### The habit
 
 - ✅ **Today's Memory Burst** — a daily bite of "this day, years ago" photos, spread across multiple years (falls back to a screenshot sweep so it never dead-ends)
+- ✅ **Library Health Score** — an honest 0–100 grade of your library's clutter that drops when mess piles up and climbs as you clean, with a breakdown that jumps straight to the fix
+- ✅ **Trophy shelf** — every milestone you've hit (photos deleted, space freed, streaks), collected as badges instead of vanishing after one celebration
 - ✅ **Streaks with freezes** — every 7-day streak earns a freeze that auto-bridges a missed day
 - ✅ **Daily reminder** — one gentle nudge, only if you haven't played today
 - ✅ **Screenshot Sweep** cleanup flow

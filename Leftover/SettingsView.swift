@@ -15,6 +15,7 @@ struct SettingsView: View {
     var onReplayOnboarding: () -> Void = {}
     @Environment(\.dismiss) private var dismiss
     @State private var showPrivacyPolicy = false
+    @State private var showTrophies = false
 
     var body: some View {
         NavigationStack {
@@ -98,6 +99,23 @@ struct SettingsView: View {
                     }
 
                     Button {
+                        showTrophies = true
+                    } label: {
+                        HStack(spacing: 12) {
+                            IconBadge(icon: "trophy", chip: Theme.chipYellow, size: 28)
+                            Text("Trophies")
+                                .foregroundColor(Theme.ink)
+                            Spacer()
+                            Text("\(stats.achievedMilestones.count) of 8")
+                                .font(.footnote.monospacedDigit())
+                                .foregroundColor(Theme.dim)
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(Theme.dim)
+                        }
+                    }
+
+                    Button {
                         onReplayOnboarding()
                     } label: {
                         HStack(spacing: 12) {
@@ -151,6 +169,9 @@ struct SettingsView: View {
             .sheet(isPresented: $showPrivacyPolicy) {
                 PrivacyPolicyView()
             }
+            .sheet(isPresented: $showTrophies) {
+                TrophyShelfView(achieved: stats.achievedMilestones)
+            }
         }
     }
 
@@ -187,6 +208,10 @@ struct PrivacyPolicyView: View {
                     policySection(
                         title: "What Leftover accesses",
                         body: "Leftover uses Apple's Photos framework to show you your photos and videos and, only when you confirm, to delete the ones you choose. It never uploads, copies, or transmits your photos anywhere."
+                    )
+                    policySection(
+                        title: "Permissions",
+                        body: "Photo Library: Leftover asks for full access so it can find duplicates, screenshots, blurry shots, and large videos across your library — all analysis happens on this device. iOS Limited Access is fully supported; grant only selected photos and Leftover works with just those.\n\nNotifications (optional): one daily reminder, only if you switch it on in Settings, and only on days you haven't cleaned up yet. Nothing else, ever."
                     )
                     policySection(
                         title: "What Leftover collects",
