@@ -129,6 +129,10 @@ struct HomeView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .layoutPriority(1)
+                // Same explicit height as the trailing chips so HStack's
+                // center alignment lines them up on a shared middle
+                // instead of each text's own font-box center.
+                .frame(height: 44)
 
             Spacer(minLength: 8)
 
@@ -157,25 +161,25 @@ struct HomeView: View {
         }
     }
 
-    private let healthBarWidth: CGFloat = 28
+    private let healthBarWidth: CGFloat = 22
 
     /// The headline mechanic: a tiny score bar + number. Tapping opens
     /// the breakdown sheet; the number pops when the score improves.
     private var healthChip: some View {
         Button(action: onHealth) {
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 ZStack(alignment: .leading) {
                     Capsule()
                         .fill(Theme.hairline)
-                        .frame(width: healthBarWidth, height: 5)
+                        .frame(width: healthBarWidth, height: 4)
                     Capsule()
                         .fill(healthScore.color)
-                        .frame(width: healthBarWidth * CGFloat(healthScore.score) / 100, height: 5)
+                        .frame(width: healthBarWidth * CGFloat(healthScore.score) / 100, height: 4)
                 }
                 .opacity(healthScore.isProvisional ? 0.6 : 1)
 
                 Text("\(healthScore.score)")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .font(.footnote.weight(.semibold).monospacedDigit())
                     .lineLimit(1)
                     .fixedSize()
                     .contentTransition(.numericText())
@@ -206,10 +210,10 @@ struct HomeView: View {
         Button(action: onTrophies) {
             HStack(spacing: 3) {
                 Image(systemName: "trophy.fill")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(Theme.chipYellow)
                 Text("\(trophyCount)")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .font(.footnote.weight(.semibold).monospacedDigit())
                     .lineLimit(1)
                     .fixedSize()
                     .contentTransition(.numericText())
@@ -228,12 +232,13 @@ struct HomeView: View {
     // against the wordmark.
     private var statsRow: some View {
         Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
-            .font(.subheadline.weight(.semibold).monospacedDigit())
+            .font(.footnote.weight(.semibold).monospacedDigit())
             .lineLimit(1)
             .fixedSize()
             .contentTransition(.numericText())
             .animation(Theme.settle, value: freedBytes)
             .foregroundColor(Theme.dim)
+            .frame(height: 44)
             .accessibilityLabel("Freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file)) so far")
     }
 
