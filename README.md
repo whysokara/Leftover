@@ -17,6 +17,13 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 
 ## ✨ Features
 
+### The home
+
+- ✅ **Cover Flow navigation** — every cleanup category is a card in an endless 3D carousel (after the iPod-era Music app), complete with glossy floor reflections
+- ✅ **Living card faces** — each card is a blurred collage of that category's actual photos, so you see your clutter before you tap
+- ✅ **Adaptive carousel** — categories with nothing to clean disappear until they're needed again
+- ✅ **Your whole library** — a Recent grid of everything, newest first; tap any photo to start swiping right there
+
 ### The swipe
 
 - ✅ **Card stack** — the next photos peek behind the one you're judging
@@ -25,11 +32,11 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 - ✅ **Keep all**, progress bar, and live keep/delete counters
 - ✅ **Undo** any swipe — nothing is deleted until you confirm
 - ✅ **Double-tap to favorite** a photo without leaving the flow
-- ✅ **Batch delete** with a freed-space toast ("12 deleted · 148 MB freed")
+- ✅ **One consistent delete flow** — every delete confirms once, shows the space you're freeing, reminds you about the 30-day Recently Deleted safety net, then celebrates
+- ✅ **Sessions survive interruptions** — get killed mid-sweep with photos marked, and the app resumes right where you left off
 
 ### The habit
 
-- ✅ **Home dashboard** — lifetime space freed, streak flame, and today's session at a glance
 - ✅ **Today's Memory Burst** — a daily bite of "this day, years ago" photos, spread across multiple years (falls back to a screenshot sweep so it never dead-ends)
 - ✅ **Streaks with freezes** — every 7-day streak earns a freeze that auto-bridges a missed day
 - ✅ **Daily reminder** — one gentle nudge, only if you haven't played today
@@ -41,9 +48,9 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 
 ### The vibe
 
-- ✅ **Headspace-inspired design** — warm cream canvas, vibrant per-feature colors, chunky rounded type
+- ✅ **Dark, neon-accented design** — near-black stage, vibrant per-feature colors, and a glowing outline-card brand mark that runs from the app icon through the splash screen
 - ✅ **Local-only** — no cloud sync, no login, no data collection, ever
-- ✅ Full **Dynamic Type** support and Reduce Motion respect
+- ✅ **Accessibility-audited** — Dynamic Type throughout, Reduce Motion respected everywhere, WCAG-checked contrast, 44pt tap targets, VoiceOver labels on every control
 
 ---
 
