@@ -415,10 +415,14 @@ struct ContentView: View {
 
             VStack(spacing: 8) {
                 NeonCardMark(size: 92)
-                    // Breathes in sync with the wordmark below it —
-                    // same pulse state, same curve, same Reduce Motion gate.
-                    .scaleEffect(pulse ? 1.0 : 0.94)
-                    .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: pulse)
+                    // A gentle hover — the mark floats and sways so it
+                    // reads as alive, not a static logo. A thin neon
+                    // outline barely shows a scale breath, so this leans on
+                    // travel + rotation instead. Driven by the wordmark's
+                    // pulse state and gated on Reduce Motion the same way.
+                    .rotationEffect(.degrees(pulse ? 2.5 : -2.5))
+                    .offset(y: pulse ? -8 : 6)
+                    .animation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true), value: pulse)
                     .padding(.bottom, 16)
 
                 VStack(spacing: 0) {
@@ -448,7 +452,7 @@ struct ContentView: View {
                         .font(.footnote)
                         .foregroundColor(Theme.dim.opacity(0.85))
                         .multilineTextAlignment(.center)
-                        .padding(.top, -10)
+                        .padding(.top, -4)
                 }
             }
             .padding(.bottom, 28)
@@ -1910,25 +1914,39 @@ struct DeleteBlastView: View {
             }
 
             if showNumber {
-                VStack(spacing: 6) {
-                    Text("\(celebration.count) Deleted")
-                        .font(Theme.display(34))
-                        .foregroundColor(Theme.ink)
-                    if celebration.freed > 0 {
-                        Text("\(ByteCountFormatter.string(fromByteCount: celebration.freed, countStyle: .file)) freed")
-                            .font(.subheadline.weight(.semibold).monospacedDigit())
-                            .foregroundColor(Theme.dim)
+                VStack(spacing: 18) {
+                    // The brand mark caps every delete, whichever flow
+                    // it came from — one consistent payoff.
+                    NeonCardMark(size: 60)
+
+                    VStack(spacing: 6) {
+                        // Space reclaimed is the headline — that's the win.
+                        if celebration.freed > 0 {
+                            Text("\(ByteCountFormatter.string(fromByteCount: celebration.freed, countStyle: .file)) freed")
+                                .font(Theme.display(34).monospacedDigit())
+                                .foregroundColor(Theme.ink)
+                            Text("\(celebration.count) \(celebration.count == 1 ? "photo" : "photos") deleted")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(Theme.dim)
+                        } else {
+                            Text("\(celebration.count) Deleted")
+                                .font(Theme.display(34))
+                                .foregroundColor(Theme.ink)
+                        }
+                        Text("In Recently Deleted for 30 days")
+                            .font(.caption)
+                            .foregroundColor(Theme.dim.opacity(0.8))
+                            .padding(.top, 2)
                     }
-                    Text("In Recently Deleted for 30 days")
-                        .font(.caption)
-                        .foregroundColor(Theme.dim.opacity(0.8))
                 }
                 .shadow(color: Theme.chipCoral.opacity(0.25), radius: 24)
                 .transition(.scale(scale: 0.5).combined(with: .opacity))
             }
         }
         .accessibilityElement()
-        .accessibilityLabel("\(celebration.count) photos deleted")
+        .accessibilityLabel(celebration.freed > 0
+                            ? "\(ByteCountFormatter.string(fromByteCount: celebration.freed, countStyle: .file)) freed, \(celebration.count) photos deleted"
+                            : "\(celebration.count) photos deleted")
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Tap to dismiss")
         // Celebration is a reward, not a toll booth — tap skips straight
@@ -1949,7 +1967,7 @@ struct DeleteBlastView: View {
         if UIAccessibility.isReduceMotionEnabled || celebration.images.isEmpty {
             swallowed = true
             withAnimation(Theme.pop) { showNumber = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { finish() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { finish() }
             return
         }
 
@@ -1962,7 +1980,7 @@ struct DeleteBlastView: View {
             Haptics.success()
             withAnimation(Theme.pop) { showNumber = true }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + swallowTime + 1.6) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + swallowTime + 2.6) {
             finish()
         }
     }
