@@ -292,7 +292,11 @@ struct ScanProgress: View {
 
                 Circle()
                     .trim(from: 0, to: progress)
-                    .stroke(Theme.cream, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    // The icon's neon gradient, carried into the arc —
+                    // the same brand mark language as NeonCardMark.
+                    .stroke(AngularGradient(colors: [Theme.chipOrange, Theme.chipPink, Theme.chipPurple],
+                                            center: .center),
+                            style: StrokeStyle(lineWidth: 10, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(Theme.settle, value: progress)
 

@@ -121,31 +121,38 @@ struct HomeView: View {
         }
     }
 
+    // Stats as capsule chips at the same height as the gear circle, so
+    // the trailing cluster reads as one deliberate control group rather
+    // than loose text floating in the header.
     private var statsRow: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: 8) {
             if freedBytes > 0 {
-                // Bare value, one line — "freed" spelled out wrapped
-                // awkwardly next to the gear; the a11y label keeps the
-                // full meaning.
                 Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .font(.footnote.weight(.semibold).monospacedDigit())
                     .lineLimit(1)
                     .fixedSize()
                     .contentTransition(.numericText())
                     .animation(Theme.settle, value: freedBytes)
                     .foregroundColor(Theme.dim)
+                    .padding(.horizontal, 12)
+                    .frame(height: 36)
+                    .background(Capsule().fill(Theme.surface))
                     .accessibilityLabel("Freed \(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file)) so far")
             }
 
             if streakCount > 0 {
                 HStack(spacing: 4) {
                     Image(systemName: "flame")
+                        .font(.footnote.weight(.semibold))
                         .foregroundColor(Theme.cream)
                         .scaleEffect(flameScale)
                     Text("\(streakCount)")
-                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                        .font(.footnote.weight(.semibold).monospacedDigit())
                         .foregroundColor(Theme.ink)
                 }
+                .padding(.horizontal, 12)
+                .frame(height: 36)
+                .background(Capsule().fill(Theme.surface))
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("\(streakCount) day streak")
                 .onAppear {
@@ -236,8 +243,10 @@ struct HomeView: View {
         .frame(height: cardSize + reflectionHeight + 4)
         .contentShape(Rectangle())
         .gesture(carouselDrag)
-        .padding(.top, 34)
-        .padding(.bottom, 10)
+        // Seats the carousel near the vertical middle and leaves only
+        // about a row and a half of the Recent grid above the fold.
+        .padding(.top, 88)
+        .padding(.bottom, 62)
         // The card set can shrink when a scan/load reports "None" —
         // snap back to the front so selectedIndex always names a real
         // card (the tap handler and wrap math both depend on it).

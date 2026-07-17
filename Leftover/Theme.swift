@@ -176,6 +176,40 @@ struct IconBadge: View {
     }
 }
 
+/// The app's brand mark, straight from the icon: a tilted rounded-card
+/// outline stroked with the chip gradient, glowing on the dark stage,
+/// with an optional motion trail. Purely decorative — always paired
+/// with text that carries the meaning.
+struct NeonCardMark: View {
+    var size: CGFloat = 72
+    var showsTrail: Bool = true
+
+    static let gradient = LinearGradient(
+        colors: [Theme.chipOrange, Theme.chipPink, Theme.chipPurple],
+        startPoint: .topLeading, endPoint: .bottomTrailing)
+
+    var body: some View {
+        ZStack {
+            if showsTrail {
+                RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                    .strokeBorder(Self.gradient, lineWidth: max(size * 0.03, 1.5))
+                    .frame(width: size, height: size)
+                    .rotationEffect(.degrees(-15))
+                    .offset(x: -size * 0.30, y: size * 0.09)
+                    .opacity(0.35)
+            }
+            RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
+                .strokeBorder(Self.gradient, lineWidth: max(size * 0.06, 2.5))
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(-10))
+                .shadow(color: Theme.chipPink.opacity(0.5), radius: size * 0.16)
+                .shadow(color: Theme.chipOrange.opacity(0.3), radius: size * 0.3)
+        }
+        .frame(width: size * 1.5, height: size * 1.25)
+        .accessibilityHidden(true)
+    }
+}
+
 extension View {
     /// Sections fade-slide in with a small stagger once `appeared` flips
     /// true — the same on-load reveal HomeView originated, promoted here

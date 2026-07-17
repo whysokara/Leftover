@@ -350,6 +350,9 @@ struct ContentView: View {
             Spacer()
 
             VStack(spacing: 8) {
+                NeonCardMark(size: 92)
+                    .padding(.bottom, 16)
+
                 Text("Leftover")
                     .font(Theme.wordmark(46))
                     .foregroundColor(Theme.ink)
@@ -1257,7 +1260,8 @@ struct ContentView: View {
     var deleteConfirmation: some View {
         VStack(spacing: 16) {
             if toBeDeleted.isEmpty {
-                LeftoverBuddy(color: Theme.chipTeal, expression: .happy, size: 64)
+                // Clean finish — the brand mark signs the session off.
+                NeonCardMark(size: 68)
 
                 Text(sessionEndTitle)
                     .font(Theme.title)
