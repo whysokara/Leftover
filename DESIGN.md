@@ -277,7 +277,14 @@ the splash wordmark pulses (gated on Reduce Motion) and auto-dissolves after
 ## Shape, space, shadows
 
 - Cards: radius **28** continuous · buttons **16** · tiles/rows **12–18** ·
-  pills/docks/toasts **capsule**. Spacing on a 4pt grid.
+  pills/docks/toasts **capsule**.
+- Spacing is one 4pt scale — `Theme.Space` (`xs 4 · sm 8 · md 12 · lg 16 ·
+  xl 24 · xxl 32 · huge 48`) plus `Theme.screenMargin` (**20**, the gutter
+  every full-width screen aligns to). Snap gaps and padding to the nearest
+  step; keep raw literals only for structural sizes (card/ring/icon
+  dimensions, offsets), never for rhythm. Single-purpose screens fill at
+  least the viewport and center short content so a sparse state is framed,
+  not stranded at the top (group review, Health).
 - Tap targets ≥ **44pt** everywhere (gear and back button pad invisible hit
   areas around smaller visuals).
 - Shadows on the dark stage are **light glows**, not dark drops (a black

@@ -67,6 +67,23 @@ enum Theme {
     static let title   = Font.title2.weight(.semibold)
     static let button  = Font.body.weight(.semibold)
 
+    // Spacing — one 4-based scale for gaps and padding, so vertical and
+    // horizontal rhythm stays consistent across screens. Snap new values
+    // to the nearest step; reserve raw literals for structural sizes
+    // (card/ring/icon dimensions, offsets), not for spacing.
+    enum Space {
+        static let xs: CGFloat = 4
+        static let sm: CGFloat = 8
+        static let md: CGFloat = 12
+        static let lg: CGFloat = 16
+        static let xl: CGFloat = 24
+        static let xxl: CGFloat = 32
+        static let huge: CGFloat = 48
+    }
+    /// Standard screen side margin — the gutter every full-width screen
+    /// aligns its content to.
+    static let screenMargin: CGFloat = 20
+
     // Shape
     static let cardRadius: CGFloat = 28
     static let buttonRadius: CGFloat = 16

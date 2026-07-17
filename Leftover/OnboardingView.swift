@@ -60,7 +60,7 @@ struct OnboardingView: View {
             Spacer(minLength: 16)
 
             progressDots
-                .padding(.bottom, 28)
+                .padding(.bottom, Theme.Space.xl)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.stage)
@@ -107,7 +107,7 @@ struct OnboardingView: View {
     // MARK: - Step 1: practice the swipe
 
     private var practiceStep: some View {
-        VStack(spacing: 14) {
+        VStack(spacing: Theme.Space.lg) {
             Text("Swipe to Decide")
                 .font(Theme.display(30))
                 .foregroundColor(Theme.ink)
@@ -282,7 +282,7 @@ struct OnboardingView: View {
                 .foregroundColor(Theme.ink)
                 .multilineTextAlignment(.center)
 
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: Theme.Space.lg) {
                 trustRow("checkmark.shield", "Nothing is deleted until you confirm.")
                 trustRow("clock.arrow.circlepath", "Deleted photos stay in Recently Deleted for 30 days.")
                 trustRow("iphone", "Everything stays on this iPhone — no cloud, no accounts.")

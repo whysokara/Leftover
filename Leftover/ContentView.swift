@@ -455,7 +455,7 @@ struct ContentView: View {
                         .padding(.top, -4)
                 }
             }
-            .padding(.bottom, 28)
+            .padding(.bottom, Theme.Space.xl)
 
             if isFirstLaunch {
                 Button("Start") {

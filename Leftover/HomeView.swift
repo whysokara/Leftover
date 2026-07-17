@@ -116,7 +116,7 @@ struct HomeView: View {
     // Wordmark leads the page; the stats sit on the trailing side,
     // tucked in next to the settings gear.
     private var header: some View {
-        HStack(spacing: 9) {
+        HStack(spacing: Theme.Space.sm) {
             // A step below largeTitle so the wordmark and the trailing
             // stats read as one balanced row instead of a giant next to
             // a whisper.
@@ -135,7 +135,7 @@ struct HomeView: View {
 
             Spacer(minLength: 8)
 
-            HStack(spacing: 9) {
+            HStack(spacing: Theme.Space.sm) {
                 if freedBytes > 0 {
                     statsRow
                 }
