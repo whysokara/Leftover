@@ -86,15 +86,24 @@ struct GroupReviewView: View {
                 }
                 Spacer()
             } else {
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
-                            groupCard(group)
-                                .cascadeIn(appeared, slot: Double(index))
+                // A short result (one or two groups) used to strand at the
+                // top with a screen of void below. Centering the stack in
+                // the available height frames it instead; a taller result
+                // outgrows the min-height and scrolls from the top as
+                // before. The bottom inset clears the floating delete pill.
+                GeometryReader { geo in
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
+                                groupCard(group)
+                                    .cascadeIn(appeared, slot: Double(index))
+                            }
                         }
+                        .padding(.horizontal, 20)
+                        .frame(maxWidth: .infinity)
+                        .frame(minHeight: geo.size.height - 96, alignment: .center)
+                        .padding(.bottom, 96)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 100)
                 }
             }
         }
@@ -147,7 +156,7 @@ struct GroupReviewView: View {
             Spacer()
 
             if !scanner.isScanning && !groups.isEmpty {
-                Text("\(groups.count.formatted()) groups")
+                Text("\(groups.count.formatted()) \(groups.count == 1 ? "group" : "groups")")
                     .font(.footnote.monospacedDigit())
                     .foregroundColor(Theme.dim)
             }

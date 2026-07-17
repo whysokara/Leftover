@@ -93,6 +93,9 @@ Three steps (`OnboardingView`), first launch only (splash Start →
 onboarding → Home), replayable from Settings → About → "How Leftover
 Works". Skippable on steps 1–2; forward-only; progress dots; push
 transitions; no `NeonCardMark` (the mark keeps its three placements).
+The top bar carries the plain-serif `Leftover` wordmark on the leading
+edge (brand continuity from the splash; also anchors it so "Skip" isn't
+an orphan in an otherwise-empty bar).
 
 1. **Swipe to Decide** — taught by doing: two chip-gradient practice
    cards with the real swipe physics in miniature (drag, bottom-anchored
@@ -227,7 +230,9 @@ All local, all honest — nothing invented, no points/currency, no servers.
   bar + number (pops on improvement); the breakdown sheet upgrades to a big
   ring gauge, where every penalty row deep-links into the screen that fixes
   it — a reason to return even after a lapse, without punishing you for
-  missing a day.
+  missing a day. Like the group-review results, the sheet fills at least
+  the viewport height and centers when short (a spotless library frames the
+  ring instead of stranding it up top; a cluttered one scrolls from the top).
 - **Trophy shelf** (`TrophyShelfView`): eleven milestones — the original six
   (100/1k/10k deleted · 1/5/10 GB freed, now an escalating rosette → medal →
   trophy icon instead of trash cans) plus one per cleanup feature (20

@@ -117,6 +117,7 @@ struct HealthDetailView: View {
 
     var body: some View {
         NavigationStack {
+            GeometryReader { geo in
             ScrollView {
                 VStack(spacing: 24) {
                     scoreRing
@@ -162,8 +163,16 @@ struct HealthDetailView: View {
                     }
                 }
                 .padding(.bottom, 32)
+                // A spotless library (score ring + buddy, no penalty rows)
+                // used to sit in the top half over a screen of void. Filling
+                // at least the viewport height lets the short state center
+                // and frame the ring; a library with penalty rows outgrows
+                // this and scrolls from the top as before.
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: geo.size.height, alignment: .center)
             }
             .background(Theme.stage)
+            }
             .navigationTitle("Library Health")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

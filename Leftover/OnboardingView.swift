@@ -69,7 +69,15 @@ struct OnboardingView: View {
 
     private var header: some View {
         HStack {
+            // Carries the splash wordmark into onboarding — brand
+            // continuity, and it anchors the leading edge so "Skip"
+            // isn't an orphan floating in an empty bar.
+            Text("Leftover")
+                .font(Theme.wordmark(20))
+                .foregroundColor(Theme.ink)
+
             Spacer()
+
             if step < 2 {
                 Button("Skip") { onFinished() }
                     .font(.subheadline.weight(.semibold))
