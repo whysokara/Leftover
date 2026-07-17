@@ -136,15 +136,21 @@ struct HomeView: View {
 
             Spacer(minLength: 8)
 
-            if freedBytes > 0 {
-                statsRow
-            }
+            HStack(spacing: 9) {
+                if freedBytes > 0 {
+                    statsRow
+                }
 
-            if trophyCount > 0 {
-                trophyChip
-            }
+                if trophyCount > 0 {
+                    trophyChip
+                }
 
-            healthChip
+                healthChip
+            }
+            // Small footnote text's own font-box sits higher than its
+            // visual glyph center relative to the wordmark's serif title
+            // metrics — nudge down so the two read as one baseline.
+            .padding(.top, 5)
 
             Button(action: onSettings) {
                 Image(systemName: "gearshape")
@@ -181,7 +187,7 @@ struct HomeView: View {
                 Text("\(healthScore.score)")
                     .font(.footnote.weight(.semibold).monospacedDigit())
                     .lineLimit(1)
-                    .fixedSize()
+                    .fixedSize(horizontal: true, vertical: false)
                     .contentTransition(.numericText())
                     .foregroundColor(Theme.ink)
                     .opacity(healthScore.isProvisional ? 0.6 : 1)
@@ -215,7 +221,7 @@ struct HomeView: View {
                 Text("\(trophyCount)")
                     .font(.footnote.weight(.semibold).monospacedDigit())
                     .lineLimit(1)
-                    .fixedSize()
+                    .fixedSize(horizontal: true, vertical: false)
                     .contentTransition(.numericText())
                     .foregroundColor(Theme.ink)
             }
@@ -234,7 +240,7 @@ struct HomeView: View {
         Text(ByteCountFormatter.string(fromByteCount: freedBytes, countStyle: .file))
             .font(.footnote.weight(.semibold).monospacedDigit())
             .lineLimit(1)
-            .fixedSize()
+            .fixedSize(horizontal: true, vertical: false)
             .contentTransition(.numericText())
             .animation(Theme.settle, value: freedBytes)
             .foregroundColor(Theme.dim)
