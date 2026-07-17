@@ -415,31 +415,41 @@ struct ContentView: View {
 
             VStack(spacing: 8) {
                 NeonCardMark(size: 92)
+                    // Breathes in sync with the wordmark below it —
+                    // same pulse state, same curve, same Reduce Motion gate.
+                    .scaleEffect(pulse ? 1.0 : 0.94)
+                    .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: pulse)
                     .padding(.bottom, 16)
 
-                Text("Leftover")
-                    .font(Theme.wordmark(46))
-                    .foregroundColor(Theme.ink)
-                    .scaleEffect(pulse ? 1.0 : 0.96)
-                    .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: pulse)
-                    .background(
-                        // A whisper of a vignette behind the black wordmark.
-                        RadialGradient(colors: [Theme.ink.opacity(0.06), .clear],
-                                       center: .center, startRadius: 10, endRadius: 220)
-                            .frame(width: 440, height: 440)
-                    )
-                    .onAppear {
-                        // The only repeat-forever motion in the app —
-                        // stays still under Reduce Motion.
-                        if !UIAccessibility.isReduceMotionEnabled {
-                            pulse = true
+                VStack(spacing: 0) {
+                    Text("Leftover")
+                        .font(Theme.wordmark(46))
+                        .foregroundColor(Theme.ink)
+                        .scaleEffect(pulse ? 1.0 : 0.96)
+                        .animation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true), value: pulse)
+                        .background(
+                            // A whisper of a vignette behind the black wordmark.
+                            RadialGradient(colors: [Theme.ink.opacity(0.06), .clear],
+                                           center: .center, startRadius: 10, endRadius: 220)
+                                .frame(width: 440, height: 440)
+                        )
+                        .onAppear {
+                            // The only repeat-forever motion in the app —
+                            // stays still under Reduce Motion.
+                            if !UIAccessibility.isReduceMotionEnabled {
+                                pulse = true
+                            }
                         }
-                    }
 
-                Text("Swipe right to keep, left to delete.")
-                    .font(.footnote)
-                    .foregroundColor(Theme.dim.opacity(0.85))
-                    .multilineTextAlignment(.center)
+                    // Serif title's line-height leaves a lot of built-in
+                    // space below the baseline — pull the subtitle up so
+                    // the gap reads as intentional, not accidental.
+                    Text("Swipe right to keep, left to delete.")
+                        .font(.footnote)
+                        .foregroundColor(Theme.dim.opacity(0.85))
+                        .multilineTextAlignment(.center)
+                        .padding(.top, -10)
+                }
             }
             .padding(.bottom, 28)
 
