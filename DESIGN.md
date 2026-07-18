@@ -173,8 +173,17 @@ in hand; an empty library falls back to Home.
    36pt visual / 44pt hit area, matching Home's gear (confirms if marks
    exist) · 4pt progress bar (cream on hairline) · glass "Keep all" pill
    (44pt).
+1a. Context line (`dim`, footnote, centered): "{session name} · {n} of
+   {total}" — the bar shows the fraction, this names it and gives it a
+   scale. Memory Burst swaps the name for the current photo's year
+   ("This day, 2019") — nostalgia is its engine.
 2. Counter row: marked count left (`toss`, mono), kept count right (`keep`,
-   mono).
+   mono), and — once anything is marked — the live tally dead-center
+   ("{size} marked", `dim`, numericText) so every left swipe pays out
+   immediately, not just at the celebration.
+2a. Photo caption under the card (`dim`, footnote, mono digits): "{Month
+   Year} · {size}" plus "Screenshot" when it is one — the exact inputs a
+   keep/delete decision weighs. Size comes from the scanner's NSCache.
 3. Card stack: top card + 2 peeking (scale 0.94/0.88, lift −16/−30, opacity
    0.7/0.4). Stack height flexes up to 470pt so short screens never push the
    dock off.

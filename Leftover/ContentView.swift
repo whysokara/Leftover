@@ -889,11 +889,16 @@ struct ContentView: View {
 
             VStack(spacing: 14) {
                 reviewTopBar
+                sessionContextLine
                 counterRow
 
                 Spacer(minLength: 8)
 
                 cardStack
+
+                if let asset = currentAsset {
+                    photoCaption(asset)
+                }
 
                 Spacer(minLength: 8)
 
@@ -984,6 +989,68 @@ struct ContentView: View {
         photoAssets.isEmpty ? 0 : CGFloat(currentIndex) / CGFloat(photoAssets.count)
     }
 
+    /// What you're reviewing and how far in — the progress bar shows the
+    /// fraction, this gives it a name and a scale. Memory Burst swaps the
+    /// name for the current photo's year: nostalgia is its whole engine.
+    private var sessionContextLine: some View {
+        let position = min(currentIndex + 1, max(photoAssets.count, 1))
+        let name: String
+        switch sessionSource {
+        case .album:
+            name = selectedAlbum?.localizedTitle ?? "All Photos"
+        case .burst:
+            if let date = currentAsset?.creationDate,
+               Calendar.current.component(.year, from: date) < Calendar.current.component(.year, from: Date()) {
+                name = "This day, \(String(Calendar.current.component(.year, from: date)))"
+            } else {
+                name = "Memory Burst"
+            }
+        case .screenshots:
+            name = "Screenshots"
+        case .blurry:
+            name = "Blurry"
+        }
+        return Text("\(name) · \(position) of \(photoAssets.count)")
+            .font(.footnote)
+            .foregroundColor(Theme.dim)
+            .lineLimit(1)
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel("\(name), photo \(position) of \(photoAssets.count)")
+    }
+
+    /// Decision fuel for the top card: how old, how big, and whether it's
+    /// a screenshot — the exact inputs you weigh before a swipe.
+    private static let captionDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f
+    }()
+
+    @ViewBuilder
+    private func photoCaption(_ asset: PHAsset) -> some View {
+        let parts: [String] = {
+            var parts: [String] = []
+            if let date = asset.creationDate {
+                parts.append(Self.captionDateFormatter.string(from: date))
+            }
+            let size = assetFileSize(asset)
+            if size > 0 {
+                parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+            }
+            if asset.mediaSubtypes.contains(.photoScreenshot) {
+                parts.append("Screenshot")
+            }
+            return parts
+        }()
+        if !parts.isEmpty {
+            Text(parts.joined(separator: " · "))
+                .font(.footnote.monospacedDigit())
+                .foregroundColor(Theme.dim)
+                .lineLimit(1)
+                .id(asset.localIdentifier)
+        }
+    }
+
     private var counterRow: some View {
         HStack {
             HStack(spacing: 5) {
@@ -997,6 +1064,20 @@ struct ContentView: View {
             .animation(Theme.settle, value: toBeDeleted.count)
             .accessibilityElement()
             .accessibilityLabel("\(toBeDeleted.count) selected to delete")
+
+            Spacer()
+
+            // The reward loop, mid-session: the space you've already won
+            // ticks up with every left swipe, not just at the end.
+            if totalSize > 0 {
+                Text("\(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)) marked")
+                    .font(.footnote.weight(.semibold).monospacedDigit())
+                    .foregroundColor(Theme.dim)
+                    .lineLimit(1)
+                    .contentTransition(.numericText())
+                    .animation(Theme.settle, value: totalSize)
+                    .accessibilityLabel("\(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)) marked for deletion")
+            }
 
             Spacer()
 
