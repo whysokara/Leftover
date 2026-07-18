@@ -80,6 +80,7 @@ struct ContentView: View {
     // card off-screen (throw) or back to center (settle).
     @State private var cardOffset: CGSize = .zero
     @State private var isThrowingCard = false
+    @State private var favoriteBurst = false
     @State private var showExitAlert = false
     @State private var showPillConfirm = false
     @State private var dealtIn = true
@@ -881,6 +882,19 @@ struct ContentView: View {
             .padding(.horizontal, 20)
             .padding(.top, 8)
             .padding(.bottom, 10)
+
+            // Double-tap favorite confirmation — a heart blooms over the
+            // card, then fades.
+            if favoriteBurst {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 96, weight: .bold))
+                    .foregroundColor(Theme.chipPink)
+                    .shadow(color: Theme.chipPink.opacity(0.5), radius: 24)
+                    .scaleEffect(favoriteBurst ? 1 : 0.4)
+                    .transition(.scale(scale: 0.5).combined(with: .opacity))
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
         }
         .edgeSwipeBack { endSessionTapped() }
         .alert("Delete \(toBeDeleted.count) Photos?", isPresented: $showExitAlert) {
@@ -1038,8 +1052,8 @@ struct ContentView: View {
             )
             .overlay(alignment: .topTrailing) {
                 if isTop && asset.isFavorite {
-                    Image(systemName: "star.fill")
-                        .foregroundColor(Theme.chipYellow)
+                    Image(systemName: "heart.fill")
+                        .foregroundColor(Theme.chipPink)
                         .font(.system(size: 18, weight: .semibold))
                         .padding(.top, 14)
                         .padding(.trailing, 16)
@@ -1057,6 +1071,12 @@ struct ContentView: View {
                             anchor: .bottom)
             .zIndex(Double(3 - depth))
             .gesture(dragGesture, including: isTop && !isThrowingCard ? .all : .none)
+            // Double-tap the photo to toggle its favorite — high priority
+            // so it wins over the drag when the taps don't move.
+            .highPriorityGesture(
+                TapGesture(count: 2).onEnded { toggleFavorite() },
+                including: isTop && !isThrowingCard ? .all : .none
+            )
             // Deal-in: cards rise from the bottom with a stagger when a
             // session starts.
             .offset(y: dealtIn ? 0 : (UIAccessibility.isReduceMotionEnabled ? 0 : 560))
@@ -1121,16 +1141,39 @@ struct ContentView: View {
     // The gestures are the whole interface — the dock keeps only the
     // one thing a gesture can't do: undo.
     private var actionDock: some View {
-        dockButton("arrow.uturn.left",
-                   chip: currentIndex > 0 ? Theme.chipNavy : Theme.dim.opacity(0.45),
-                   label: "Undo") {
-            undoLast()
+        HStack(spacing: 12) {
+            favoriteDockButton
+            dockButton("arrow.uturn.left",
+                       chip: currentIndex > 0 ? Theme.chipNavy : Theme.dim.opacity(0.45),
+                       label: "Undo") {
+                undoLast()
+            }
+            .disabled(currentIndex == 0)
         }
-        .disabled(currentIndex == 0)
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .background(Theme.surface, in: Capsule())
         .shadow(color: Theme.ink.opacity(0.12), radius: 16, y: 6)
+    }
+
+    // Reflects the current photo's favorite state — hollow heart when
+    // not favorited, filled pink when it is. Toggles on tap (the
+    // VoiceOver / tap-first path; double-tapping the photo does the same).
+    private var favoriteDockButton: some View {
+        let fav = currentAsset?.isFavorite ?? false
+        return Button {
+            toggleFavorite()
+        } label: {
+            Image(systemName: fav ? "heart.fill" : "heart")
+                .font(.system(size: 18, weight: .bold))
+                .foregroundColor(fav ? Theme.onChip : Theme.ink)
+                .frame(width: 46, height: 46)
+                .background(Circle().fill(fav ? Theme.chipPink : Theme.raised))
+        }
+        .buttonStyle(DockButtonStyle())
+        .animation(Theme.pop, value: fav)
+        .accessibilityLabel(fav ? "Favorited" : "Favorite")
+        .accessibilityHint("Toggles this photo as a favorite")
     }
 
     private func dockButton(_ icon: String, chip: Color, label: String,
@@ -1147,6 +1190,50 @@ struct ContentView: View {
     }
 
     // MARK: - Swipe actions (one code path for gestures and dock buttons)
+
+    /// Flip the current photo's favorite in the real Photos library.
+    /// `PHAsset` is an immutable snapshot, so after the write we re-fetch
+    /// by localIdentifier and swap the refreshed asset into the arrays so
+    /// the card badge and dock heart reflect the new state.
+    func toggleFavorite() {
+        guard currentIndex < photoAssets.count else { return }
+        let asset = photoAssets[currentIndex]
+        let id = asset.localIdentifier
+        let newValue = !asset.isFavorite
+        Haptics.impact(.light)
+        if newValue { triggerFavoriteBurst() }
+
+        PHPhotoLibrary.shared().performChanges({
+            PHAssetChangeRequest(for: asset).isFavorite = newValue
+        }) { success, _ in
+            DispatchQueue.main.async {
+                guard success else {
+                    self.showToast("Couldn’t update favorite.")
+                    return
+                }
+                guard let refreshed = PHAsset.fetchAssets(
+                        withLocalIdentifiers: [id], options: nil).firstObject else { return }
+                if let idx = self.photoAssets.firstIndex(where: { $0.localIdentifier == id }) {
+                    self.photoAssets[idx] = refreshed
+                }
+                if self.currentIndex < self.photoAssets.count,
+                   self.photoAssets[self.currentIndex].localIdentifier == id {
+                    self.currentAsset = refreshed
+                }
+            }
+        }
+    }
+
+    /// A heart pops over the photo the instant a favorite is turned on —
+    /// the double-tap confirmation, Instagram-familiar. Off under Reduce Motion.
+    private func triggerFavoriteBurst() {
+        guard !UIAccessibility.isReduceMotionEnabled else { return }
+        favoriteBurst = false
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.55)) { favoriteBurst = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation(.easeOut(duration: 0.25)) { favoriteBurst = false }
+        }
+    }
 
     func throwCard(toss: Bool) {
         guard !isThrowingCard, currentIndex < photoAssets.count else { return }

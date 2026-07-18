@@ -61,7 +61,7 @@ Group-review screens carry their chip color as an
 Icon badges (`IconBadge`, Theme.swift): thin non-`.fill` SF Symbol in its
 accent color on a ~16% tint of the same color — used in Settings rows.
 Exceptions that stay bold/filled: the action dock (solid chips, `onChip`
-glyphs) and status badges over photos (favorite star, keeper/marked badges —
+glyphs) and status badges over photos (favorite heart, keeper/marked badges —
 white-backed circles so the cutout glyphs don't read as holes).
 
 Glass: `.ultraThinMaterial` + 1px `hairline` stroke — toasts, "Keep all"
@@ -180,17 +180,21 @@ in hand; an empty library falls back to Home.
    dock off.
 4. "Delete {size}" capsule appears above the dock only when something is
    marked (size only — the counter row already has the count).
-5. Action dock: a single undo button (solid navy chip, 46pt, `onChip`
-   glyph) — the gestures *are* the interface, and undo is the one thing a
-   gesture can't do. Delete/keep have no visible buttons; VoiceOver users
-   get them as custom accessibility actions on the card, driving the same
-   `throwCard` code path.
+5. Action dock: two 46pt buttons — favorite (a heart that reads the top
+   photo's state: hollow `heart` on `raised` when not favorited, filled
+   `heart.fill` on `chipPink` when it is) and undo (solid navy chip,
+   `onChip` glyph). Delete/keep have no visible buttons — the gestures
+   *are* the interface; VoiceOver users get delete/keep as custom
+   accessibility actions on the card, driving the same `throwCard` code path.
 
 The signature moment: drag tilts the card from its base, the matching screen
 edge glows with drag distance, release throws the card along its vector while
 the next springs forward. The edge glow is the only decision indicator — no
-stamps. Already-favorited photos show a passive star badge (display only —
-the in-app favoriting action was removed). Undo is multi-level, flying the
+stamps. **Double-tap the photo to favorite it** (or tap the dock heart): the
+Photos-library favorite flips via `toggleFavorite`, a heart blooms over the
+card, the dock heart fills, and a matching heart badge sits on the card
+(favorites need a real device — the simulator sandboxes library writes).
+Undo is multi-level, flying the
 card back in from the side it left. Left-edge swipe goes back on every
 full-screen list and the swipe screen (`edgeSwipeBack`, a real
 `UIScreenEdgePanGestureRecognizer`).
