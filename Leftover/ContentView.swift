@@ -616,6 +616,20 @@ struct ContentView: View {
                             // (already kicked off above) fires startSession
                             // once the burst is in hand.
                             self.pendingFirstCleanup = true
+                        } else if args.contains("-LeftoverResumeSeed"), !self.sessionActive {
+                            // Opens All Photos the way the picker does, then
+                            // fakes four keeps so a later launch has progress
+                            // to resume from.
+                            self.loadPhotos(resumeAlbum: true)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                for _ in 0..<4 where self.currentIndex < self.photoAssets.count {
+                                    self.commitSwipe(toss: false, asset: self.photoAssets[self.currentIndex])
+                                }
+                            }
+                        } else if args.contains("-LeftoverResumeCheck"), !self.sessionActive {
+                            // Same entry point, but never swipes — whatever
+                            // position shows is purely what resume restored.
+                            self.loadPhotos(resumeAlbum: true)
                         } else if args.contains("-LeftoverAutoSession"), !self.sessionActive {
                             self.loadPhotos(origin: .home)
                         } else if args.contains("-LeftoverOpenDuplicates") {
@@ -769,7 +783,7 @@ struct ContentView: View {
                 ) {
                     self.selectedAlbum = nil
                     self.showAlbumPicker = false
-                    self.loadPhotos()
+                    self.loadPhotos(resumeAlbum: true)
                 }
 
                 // Album List
@@ -781,7 +795,7 @@ struct ContentView: View {
                     ) {
                         self.selectedAlbum = albumMeta.collection
                         self.showAlbumPicker = false
-                        self.loadPhotos(from: albumMeta.collection)
+                        self.loadPhotos(from: albumMeta.collection, resumeAlbum: true)
                     }
                 }
             }
@@ -1187,6 +1201,7 @@ struct ContentView: View {
             moveToNextPhoto()
         }
         cardOffset = .zero
+        recordAlbumProgress()
     }
 
     func undoLast() {
@@ -1202,6 +1217,7 @@ struct ContentView: View {
                 toBeDeleted.removeAll { $0 == asset }
             }
             currentAsset = asset
+            recordAlbumProgress()
         }
 
         if UIAccessibility.isReduceMotionEnabled {
@@ -1243,16 +1259,20 @@ struct ContentView: View {
     /// Snapshot an in-flight session with marks pending, so an app kill
     /// in the background doesn't silently discard a long swipe run.
     func persistSessionIfNeeded() {
-        guard sessionActive, !toBeDeleted.isEmpty else {
+        // Progress alone is worth saving — someone who kept 40 photos and
+        // marked none should not have to judge those 40 again.
+        guard sessionActive, currentIndex > 0 || !toBeDeleted.isEmpty else {
             UserDefaults.standard.removeObject(forKey: Self.savedSessionKey)
             return
         }
-        let payload: [String: Any] = [
+        recordAlbumProgress()
+        var payload: [String: Any] = [
             "assets": photoAssets.map(\.localIdentifier),
             "marked": toBeDeleted.map(\.localIdentifier),
             "index": currentIndex,
             "origin": sessionOrigin == .albums ? "albums" : "home",
         ]
+        if let album = selectedAlbum { payload["album"] = album.localIdentifier }
         UserDefaults.standard.set(payload, forKey: Self.savedSessionKey)
     }
 
@@ -1260,25 +1280,62 @@ struct ContentView: View {
         UserDefaults.standard.removeObject(forKey: Self.savedSessionKey)
     }
 
-    /// Rebuilds an interrupted session on launch. Only restores when
-    /// something was actually marked — an unmarked session costs nothing
-    /// to lose. Returns true if a session was restored.
+    // MARK: - Per-album progress
+
+    private static let albumProgressKey = "albumProgress.v1"
+
+    private func albumKey(for album: PHAssetCollection?) -> String {
+        album?.localIdentifier ?? "allPhotos"
+    }
+
+    private func savedAlbumProgress(for album: PHAssetCollection?) -> String? {
+        let map = UserDefaults.standard.dictionary(forKey: Self.albumProgressKey) as? [String: String]
+        return map?[albumKey(for: album)]
+    }
+
+    /// Remembers the last photo the user actually decided on, so reopening
+    /// this album later resumes after it instead of replaying everything
+    /// they already judged. Finishing the album clears the mark so the next
+    /// visit starts fresh.
+    func recordAlbumProgress() {
+        guard sessionSource == .album else { return }
+        let key = albumKey(for: selectedAlbum)
+        var map = UserDefaults.standard.dictionary(forKey: Self.albumProgressKey) as? [String: String] ?? [:]
+        if currentIndex >= photoAssets.count || currentIndex <= 0 {
+            map.removeValue(forKey: key)
+        } else {
+            map[key] = photoAssets[currentIndex - 1].localIdentifier
+        }
+        UserDefaults.standard.set(map, forKey: Self.albumProgressKey)
+    }
+
+    /// Rebuilds an interrupted session on launch — whether or not anything
+    /// was marked, since the swiping already done is itself worth keeping.
+    /// Returns true if a session was restored.
     func restoreSavedSessionIfAny() -> Bool {
         guard let payload = UserDefaults.standard.dictionary(forKey: Self.savedSessionKey),
               let ids = payload["assets"] as? [String],
-              let markedIDs = payload["marked"] as? [String],
               let index = payload["index"] as? Int,
-              !ids.isEmpty, !markedIDs.isEmpty else { return false }
+              !ids.isEmpty, index > 0 || !((payload["marked"] as? [String]) ?? []).isEmpty
+        else { return false }
+        let markedIDs = (payload["marked"] as? [String]) ?? []
         clearSavedSession()
 
         // Fetch order isn't guaranteed — rebuild in the saved order and
-        // silently drop anything deleted since (marks must still exist).
+        // silently drop anything deleted since.
         var byID: [String: PHAsset] = [:]
         PHAsset.fetchAssets(withLocalIdentifiers: ids, options: nil)
             .enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
         let assets = ids.compactMap { byID[$0] }
         let marked = markedIDs.compactMap { byID[$0] }
-        guard !assets.isEmpty, !marked.isEmpty else { return false }
+        guard !assets.isEmpty else { return false }
+
+        // Restore the album too, so "Back to Albums" and the post-delete
+        // resume reload the right collection rather than All Photos.
+        if let albumID = payload["album"] as? String {
+            selectedAlbum = PHAssetCollection.fetchAssetCollections(
+                withLocalIdentifiers: [albumID], options: nil).firstObject
+        }
 
         sessionSource = .album
         sessionOrigin = (payload["origin"] as? String) == "albums" ? .albums : .home
@@ -1641,8 +1698,13 @@ struct ContentView: View {
         PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: root)
     }
 
-    func loadPhotos(from album: PHAssetCollection? = nil, startAt: Int = 0, origin: SessionOrigin = .albums) {
+    /// `resumeAlbum` picks up where this album was last left off — used when
+    /// the user opens an album from the picker, not when a caller already
+    /// knows the index it wants (a post-delete resume, or a Recent tap).
+    func loadPhotos(from album: PHAssetCollection? = nil, startAt: Int = 0,
+                    origin: SessionOrigin = .albums, resumeAlbum: Bool = false) {
         isLoadingPhotos = true
+        let lastReviewedID = resumeAlbum ? savedAlbumProgress(for: album) : nil
 
         DispatchQueue.global(qos: .userInitiated).async {
             let fetchOptions = PHFetchOptions()
@@ -1658,8 +1720,20 @@ struct ContentView: View {
             var result: [PHAsset] = []
             assets.enumerateObjects { (asset, _, _) in result.append(asset) }
 
+            // Resume from the photo after the last one they decided on.
+            // Matching by identifier rather than a stored index survives the
+            // album changing while they were away. Reaching the end means
+            // they finished it — start clean rather than reopening on "done".
+            var resumeStart: Int? = nil
+            if let lastReviewedID,
+               let seen = result.firstIndex(where: { $0.localIdentifier == lastReviewedID }),
+               seen + 1 < result.count {
+                resumeStart = seen + 1
+            }
+
             DispatchQueue.main.async {
-                let start = min(startAt, max(result.count - 1, 0))
+                let start = min(resumeStart ?? startAt, max(result.count - 1, 0))
+                if resumeStart != nil { self.showToast("Picking up where you left off.") }
                 self.dealtIn = false
                 withAnimation(Theme.settle) {
                     self.sessionSource = .album

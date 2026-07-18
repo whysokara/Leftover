@@ -329,8 +329,14 @@ screen.
 
 ## Resilience (designed behavior, not just engineering)
 
-- Sessions with marks pending survive background kills — snapshotted on
-  backgrounding, restored on next launch with "Resumed where you left off."
+- **Nobody re-judges a photo they already judged.** Two layers: an
+  interrupted session is snapshotted on backgrounding and restored next
+  launch ("Resumed where you left off.") — progress alone is enough, marks
+  aren't required, because keeping 40 photos is work worth saving. And each
+  album remembers the last photo actually decided on (`albumProgress.v1`,
+  stored by identifier so it survives the album changing), so reopening it
+  later starts at the next unseen photo with "Picking up where you left
+  off." Finishing an album clears its mark, so the next visit starts fresh.
 - A `PHPhotoLibraryChangeObserver` keeps Home honest when the library
   changes externally; active sessions are never disturbed.
 - Limited photo access is a first-class state: banner + Manage on Home and
