@@ -32,6 +32,7 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 - ✅ **Keep all**, progress bar, and live keep/delete counters
 - ✅ **Undo** any swipe — nothing is deleted until you confirm
 - ✅ **One consistent delete flow** — every delete confirms once, shows the space you're freeing, reminds you about the 30-day Recently Deleted safety net, then celebrates
+- ✅ **Share your win** — one tap on the celebration shares "I just freed 2.3 GB" with a link
 - ✅ **Never re-judge the same photo** — leave mid-sweep and come back whenever; the session resumes where you left off, and every album remembers the last photo you decided on, so reopening it starts at the next unseen one
 
 ### The habit
@@ -59,7 +60,6 @@ So I built **Leftover** in SwiftUI to solve one simple problem:
 > From the [roadmap](ROADMAP.md):
 
 - [ ] Leftover Plus (unlimited bursts, power features) + paywall
-- [ ] Share footer ("Sorted with Leftover 🧹")
 - [ ] Home-screen widget
 
 ---

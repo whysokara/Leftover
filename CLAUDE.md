@@ -68,7 +68,7 @@ The identity is **dark and minimal, reference-driven** (July 2026, sixth iterati
 
 ## Future features (from README / ROADMAP.md)
 
-Leftover Plus (StoreKit 2 paywall; free tier keeps classic album swiping), share footer, home-screen widget (Stats already mirrors into an App Group), batch review mode, blur detection. Follow the established pattern: state + computed view in ContentView, PhotoKit work off the main thread.
+Leftover Plus (StoreKit 2 paywall; free tier keeps classic album swiping), home-screen widget (Stats already mirrors into an App Group), batch review mode. (The share footer shipped as the celebration's Share pill; blur detection shipped as the Blurry sweep.) Follow the established pattern: state + computed view in ContentView, PhotoKit work off the main thread.
 
 ## PhotoKit gotcha (July 2026)
 

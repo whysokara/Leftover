@@ -210,9 +210,13 @@ Count and size each appear **exactly once per screen**:
    pile, title, one "{n} photos · {size}" line, plain Delete, retention
    caption. Clean finishes (nothing marked) get the brand mark instead.
 4. Success plays `DeleteBlastView` on every path: thumbnails swallowed by
-   the spotlight, "{n} Deleted", "{size} freed", "In Recently Deleted for 30
-   days". Tap anywhere to skip. Failure is never silent: toast "Couldn't
-   delete. Photos unchanged." with all state kept for retry.
+   the spotlight, the brand mark, "{size} freed" as the headline, "{n}
+   photos deleted", "In Recently Deleted for 30 days", and a glass **Share**
+   pill — the system sheet with "I just freed {size} of photo clutter with
+   Leftover 🧹" + the marketing link (sharing pauses the auto-dismiss; the
+   only sanctioned emoji in the app, and it leaves the device, not the UI).
+   Tap anywhere to skip. Failure is never silent: toast "Couldn't delete.
+   Photos unchanged." with all state kept for retry.
 
 After deleting: albums resume at the next unseen photo (mid-session) or exit
 to where the user came from (end of album); burst flows into Burst Complete;

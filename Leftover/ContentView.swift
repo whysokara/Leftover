@@ -2015,6 +2015,7 @@ struct DeleteBlastView: View {
     @State private var glowPulse = false
     @State private var showNumber = false
     @State private var finished = false
+    @State private var isSharing = false
 
     var body: some View {
         ZStack {
@@ -2084,6 +2085,19 @@ struct DeleteBlastView: View {
                             .foregroundColor(Theme.dim.opacity(0.8))
                             .padding(.top, 2)
                     }
+
+                    // The win is the app's most shareable artifact —
+                    // one tap turns it into a story/post with the link.
+                    Button(action: presentShareSheet) {
+                        Label("Share", systemImage: "square.and.arrow.up")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(Theme.ink)
+                            .padding(.horizontal, 20)
+                            .frame(height: 40)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
+                    }
+                    .buttonStyle(ScaleButtonStyle())
                 }
                 .shadow(color: Theme.chipCoral.opacity(0.25), radius: 24)
                 .transition(.scale(scale: 0.5).combined(with: .opacity))
@@ -2095,6 +2109,7 @@ struct DeleteBlastView: View {
                             : "\(celebration.count) photos deleted")
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Tap to dismiss")
+        .accessibilityAction(named: "Share") { presentShareSheet() }
         // Celebration is a reward, not a toll booth — tap skips straight
         // through. The guard keeps the still-pending auto-dismiss timer
         // from firing onDone a second time.
@@ -2104,16 +2119,49 @@ struct DeleteBlastView: View {
     }
 
     private func finish() {
-        guard !finished else { return }
+        guard !finished, !isSharing else { return }
         finished = true
         onDone()
+    }
+
+    /// System share sheet with the win + link. Sharing pauses the
+    /// auto-dismiss (the timers check `isSharing`), and closing the
+    /// sheet ends the celebration.
+    private func presentShareSheet() {
+        guard !isSharing else { return }
+        isSharing = true
+        let freedText = ByteCountFormatter.string(fromByteCount: celebration.freed, countStyle: .file)
+        let message = celebration.freed > 0
+            ? "I just freed \(freedText) of photo clutter with Leftover 🧹"
+            : "I just cleaned \(celebration.count) photos with Leftover 🧹"
+        var items: [Any] = [message]
+        if let url = URL(string: "https://whysokara.github.io/Leftover/") {
+            items.append(url)
+        }
+        let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        vc.completionWithItemsHandler = { _, _, _, _ in
+            isSharing = false
+            finish()
+        }
+        guard let scene = UIApplication.shared.connectedScenes
+                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+              let root = scene.windows.first(where: \.isKeyWindow)?.rootViewController
+        else {
+            isSharing = false
+            return
+        }
+        // iPad: anchor the popover mid-screen under the numbers.
+        vc.popoverPresentationController?.sourceView = root.view
+        vc.popoverPresentationController?.sourceRect = CGRect(
+            x: root.view.bounds.midX, y: root.view.bounds.midY, width: 1, height: 1)
+        root.present(vc, animated: true)
     }
 
     private func run() {
         if UIAccessibility.isReduceMotionEnabled || celebration.images.isEmpty {
             swallowed = true
             withAnimation(Theme.pop) { showNumber = true }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.6) { finish() }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3.4) { finish() }
             return
         }
 
@@ -2126,7 +2174,7 @@ struct DeleteBlastView: View {
             Haptics.success()
             withAnimation(Theme.pop) { showNumber = true }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + swallowTime + 2.6) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + swallowTime + 3.4) {
             finish()
         }
     }
