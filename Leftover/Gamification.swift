@@ -270,12 +270,21 @@ struct TrophyShelfView: View {
         ("5 large videos cleared", "Clear 5 large videos", "checkmark.seal.fill", Theme.chipCoral),
     ]
 
+    /// What you've earned rises to the top — the shelf should open on
+    /// your wins, not on a wall of locks. Each half keeps the declared
+    /// order (the tiers stay in ladder order, features after them), so
+    /// the next goal is always the first locked badge you see.
+    private var orderedBadges: [(name: String, goal: String, icon: String, chip: Color)] {
+        Self.badges.filter { achieved.contains($0.name) }
+            + Self.badges.filter { !achieved.contains($0.name) }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible())],
                           spacing: 14) {
-                    ForEach(Array(Self.badges.enumerated()), id: \.element.name) { index, badge in
+                    ForEach(Array(orderedBadges.enumerated()), id: \.element.name) { index, badge in
                         badgeCell(badge, unlocked: achieved.contains(badge.name))
                             .cascadeIn(appeared, slot: Double(index) * 0.5)
                     }

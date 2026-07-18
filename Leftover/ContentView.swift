@@ -81,6 +81,7 @@ struct ContentView: View {
     // card off-screen (throw) or back to center (settle).
     @State private var cardOffset: CGSize = .zero
     @State private var isThrowingCard = false
+    @State private var tallyPop = false
     @State private var showExitAlert = false
     @State private var showPillConfirm = false
     @State private var dealtIn = true
@@ -634,6 +635,14 @@ struct ContentView: View {
                             // Same entry point, but never swipes — whatever
                             // position shows is purely what resume restored.
                             self.loadPhotos(resumeAlbum: true)
+                        } else if args.contains("-LeftoverMixDemo"), !self.sessionActive {
+                            self.loadPhotos(origin: .home)
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                for i in 0..<5 where self.currentIndex < self.photoAssets.count {
+                                    self.commitSwipe(toss: i % 2 == 0,
+                                                     asset: self.photoAssets[self.currentIndex])
+                                }
+                            }
                         } else if args.contains("-LeftoverAutoSession"), !self.sessionActive {
                             self.loadPhotos(origin: .home)
                         } else if args.contains("-LeftoverOpenDuplicates") {
@@ -957,36 +966,67 @@ struct ContentView: View {
                 endSessionTapped()
             }
 
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Theme.hairline)
-                        .frame(height: 4)
-                    Capsule()
-                        .fill(Theme.cream)
-                        .frame(width: max(geo.size.width * progressFraction, 4), height: 4)
-                        .animation(Theme.settle, value: currentIndex)
-                }
-                .frame(maxHeight: .infinity, alignment: .center)
-            }
-            .frame(height: 40)
-            .accessibilityElement()
-            .accessibilityLabel("Reviewed \(currentIndex) of \(photoAssets.count)")
+            decisionRibbon
+                .frame(height: 40)
+                .accessibilityElement()
+                .accessibilityLabel("Reviewed \(currentIndex) of \(photoAssets.count), \(toBeDeleted.count) marked to delete")
 
+            // Bare text, not a glass pill — this is the secondary escape
+            // hatch, and a chunky capsule competed with the photo.
             Button("Keep all") {
                 keepAll()
             }
-            .font(.subheadline.weight(.semibold))
-            .foregroundColor(Theme.ink)
-            .padding(.horizontal, 14)
+            .font(.footnote.weight(.semibold))
+            .foregroundColor(Theme.dim)
+            .padding(.horizontal, 4)
             .frame(height: 44)
-            .background(.ultraThinMaterial, in: Capsule())
+            .contentShape(Rectangle())
             .accessibilityHint("Keeps every remaining photo and ends the session")
         }
     }
 
     private var progressFraction: CGFloat {
         photoAssets.isEmpty ? 0 : CGFloat(currentIndex) / CGFloat(photoAssets.count)
+    }
+
+    /// The progress bar as a record of decisions: one segment per photo —
+    /// coral where you deleted, teal where you kept, cream for the one in
+    /// hand. Reads as a ribbon of what you've done, not just how far you
+    /// are. Long sessions fall back to a single bar; 500 segments is mush.
+    private var decisionRibbon: some View {
+        let marked = Set(toBeDeleted.map(\.localIdentifier))
+        return GeometryReader { geo in
+            Group {
+                if photoAssets.count <= 24 {
+                    HStack(spacing: 3) {
+                        ForEach(Array(photoAssets.enumerated()), id: \.element.localIdentifier) { index, _ in
+                            Capsule()
+                                .fill(segmentColor(index: index, marked: marked))
+                                .frame(height: index == currentIndex ? 7 : 4)
+                        }
+                    }
+                    .animation(Theme.settle, value: currentIndex)
+                    .animation(Theme.settle, value: toBeDeleted.count)
+                } else {
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Theme.hairline)
+                            .frame(height: 4)
+                        Capsule()
+                            .fill(Theme.cream)
+                            .frame(width: max(geo.size.width * progressFraction, 4), height: 4)
+                            .animation(Theme.settle, value: currentIndex)
+                    }
+                }
+            }
+            .frame(maxHeight: .infinity, alignment: .center)
+        }
+    }
+
+    private func segmentColor(index: Int, marked: Set<String>) -> Color {
+        if index == currentIndex { return Theme.cream }
+        guard index < currentIndex, photoAssets.indices.contains(index) else { return Theme.hairline }
+        return marked.contains(photoAssets[index].localIdentifier) ? Theme.toss : Theme.keep
     }
 
     /// What you're reviewing and how far in — the progress bar shows the
@@ -1026,29 +1066,48 @@ struct ContentView: View {
         return f
     }()
 
-    @ViewBuilder
     private func photoCaption(_ asset: PHAsset) -> some View {
-        let parts: [String] = {
-            var parts: [String] = []
+        let size = assetFileSize(asset)
+        return HStack(spacing: 6) {
             if let date = asset.creationDate {
-                parts.append(Self.captionDateFormatter.string(from: date))
+                captionChip("calendar", Self.captionDateFormatter.string(from: date), tint: nil)
             }
-            let size = assetFileSize(asset)
             if size > 0 {
-                parts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+                captionChip("internaldrive",
+                            ByteCountFormatter.string(fromByteCount: size, countStyle: .file),
+                            tint: heftTint(size))
             }
             if asset.mediaSubtypes.contains(.photoScreenshot) {
-                parts.append("Screenshot")
+                captionChip("camera.viewfinder", "Screenshot", tint: nil)
             }
-            return parts
-        }()
-        if !parts.isEmpty {
-            Text(parts.joined(separator: " · "))
-                .font(.footnote.monospacedDigit())
-                .foregroundColor(Theme.dim)
-                .lineLimit(1)
-                .id(asset.localIdentifier)
         }
+        .id(asset.localIdentifier)
+        .transition(.opacity.combined(with: .scale(scale: 0.94)))
+        .animation(Theme.settle, value: asset.localIdentifier)
+    }
+
+    /// A space hog should look hot before you read the number: the size
+    /// chip's coral tint climbs with the photo's weight (8 MB reads as
+    /// heavy). Ordinary photos stay neutral so the signal means something.
+    private func heftTint(_ bytes: Int64) -> Color? {
+        let heft = min(Double(bytes) / 8_000_000, 1)
+        guard heft > 0.15 else { return nil }
+        return Theme.toss.opacity(0.12 + 0.28 * heft)
+    }
+
+    private func captionChip(_ icon: String, _ text: String, tint: Color?) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: icon)
+                .font(.caption2.weight(.semibold))
+            Text(text)
+                .font(.caption.weight(.medium).monospacedDigit())
+        }
+        .foregroundColor(tint == nil ? Theme.dim : Theme.ink)
+        .lineLimit(1)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(tint ?? Theme.surface, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
     }
 
     private var counterRow: some View {
@@ -1070,12 +1129,24 @@ struct ContentView: View {
             // The reward loop, mid-session: the space you've already won
             // ticks up with every left swipe, not just at the end.
             if totalSize > 0 {
-                Text("\(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)) marked")
+                Text(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))
                     .font(.footnote.weight(.semibold).monospacedDigit())
-                    .foregroundColor(Theme.dim)
+                    .foregroundColor(Theme.toss)
                     .lineLimit(1)
                     .contentTransition(.numericText())
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Theme.toss.opacity(0.14), in: Capsule())
+                    .scaleEffect(tallyPop ? 1.16 : 1)
                     .animation(Theme.settle, value: totalSize)
+                    .transition(.scale(scale: 0.7).combined(with: .opacity))
+                    .onChange(of: totalSize) { _ in
+                        guard !UIAccessibility.isReduceMotionEnabled else { return }
+                        withAnimation(Theme.pop) { tallyPop = true }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                            withAnimation(Theme.settle) { tallyPop = false }
+                        }
+                    }
                     .accessibilityLabel("\(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)) marked for deletion")
             }
 
