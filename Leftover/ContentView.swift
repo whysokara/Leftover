@@ -1071,9 +1071,11 @@ struct ContentView: View {
                             anchor: .bottom)
             .zIndex(Double(3 - depth))
             .gesture(dragGesture, including: isTop && !isThrowingCard ? .all : .none)
-            // Double-tap the photo to toggle its favorite — high priority
-            // so it wins over the drag when the taps don't move.
-            .highPriorityGesture(
+            // Double-tap the photo to toggle its favorite. Simultaneous so
+            // it never blocks the drag and the drag never eats it — a
+            // double-tap has no movement, so the min-distance drag never
+            // starts, and a real drag has movement, so the tap never fires.
+            .simultaneousGesture(
                 TapGesture(count: 2).onEnded { toggleFavorite() },
                 including: isTop && !isThrowingCard ? .all : .none
             )
