@@ -1,6 +1,7 @@
 import SwiftUI
 import Photos
 import PhotosUI
+import StoreKit
 import UIKit
 
 enum SessionSource {
@@ -215,6 +216,9 @@ struct ContentView: View {
             if let celebration = deleteCelebration {
                 DeleteBlastView(celebration: celebration) {
                     withAnimation(Theme.settle) { deleteCelebration = nil }
+                    // Peak-joy moment: they just watched space get freed.
+                    // The gate inside keeps this rare and Apple-compliant.
+                    maybeRequestReview()
                 }
                 .transition(.opacity)
                 .zIndex(3)
@@ -1168,6 +1172,34 @@ struct ContentView: View {
     }
 
     // MARK: - Swipe actions (one code path for gestures and dock buttons)
+
+    /// Ask for a rating only at a happy moment, only for invested users,
+    /// and only rarely: at least two cleanups deep (100+ photos judged is
+    /// implied by then), never twice on one version, and never within 120
+    /// days of the last ask — Apple caps the system sheet at 3/year, so
+    /// each ask has to count. The system may still choose not to show it.
+    func maybeRequestReview() {
+        let defaults = UserDefaults.standard
+        let cleanups = defaults.integer(forKey: "cleanupCount") + 1
+        defaults.set(cleanups, forKey: "cleanupCount")
+        guard cleanups >= 2 else { return }
+
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
+        guard defaults.string(forKey: "reviewAskedVersion") != version else { return }
+        let lastAsk = defaults.double(forKey: "reviewAskedAt")
+        guard Date().timeIntervalSince1970 - lastAsk > 120 * 24 * 3600 else { return }
+
+        guard let scene = UIApplication.shared.connectedScenes
+                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene
+        else { return }
+        defaults.set(version, forKey: "reviewAskedVersion")
+        defaults.set(Date().timeIntervalSince1970, forKey: "reviewAskedAt")
+        // A beat after the celebration clears, so the sheet never collides
+        // with the dismiss animation.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            SKStoreReviewController.requestReview(in: scene)
+        }
+    }
 
     func throwCard(toss: Bool) {
         guard !isThrowingCard, currentIndex < photoAssets.count else { return }
