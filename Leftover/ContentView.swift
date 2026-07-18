@@ -81,7 +81,6 @@ struct ContentView: View {
     // card off-screen (throw) or back to center (settle).
     @State private var cardOffset: CGSize = .zero
     @State private var isThrowingCard = false
-    @State private var tallyPop = false
     @State private var showExitAlert = false
     @State private var showPillConfirm = false
     @State private var dealtIn = true
@@ -899,7 +898,6 @@ struct ContentView: View {
             VStack(spacing: 14) {
                 reviewTopBar
                 sessionContextLine
-                counterRow
 
                 Spacer(minLength: 8)
 
@@ -1008,15 +1006,26 @@ struct ContentView: View {
                     .animation(Theme.settle, value: currentIndex)
                     .animation(Theme.settle, value: toBeDeleted.count)
                 } else {
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Theme.hairline)
+                    // Too many photos to draw one segment each, but the
+                    // ribbon still has to say what you did — so the filled
+                    // run splits coral/teal in proportion to the decisions.
+                    let total = CGFloat(max(photoAssets.count, 1))
+                    let tossed = CGFloat(toBeDeleted.count)
+                    let kept = max(CGFloat(currentIndex) - tossed, 0)
+                    Capsule()
+                        .fill(Theme.hairline)
+                        .frame(height: 4)
+                        .overlay(alignment: .leading) {
+                            HStack(spacing: 0) {
+                                Rectangle().fill(Theme.toss)
+                                    .frame(width: geo.size.width * tossed / total)
+                                Rectangle().fill(Theme.keep)
+                                    .frame(width: geo.size.width * kept / total)
+                            }
                             .frame(height: 4)
-                        Capsule()
-                            .fill(Theme.cream)
-                            .frame(width: max(geo.size.width * progressFraction, 4), height: 4)
+                            .clipShape(Capsule())
                             .animation(Theme.settle, value: currentIndex)
-                    }
+                        }
                 }
             }
             .frame(maxHeight: .infinity, alignment: .center)
@@ -1066,16 +1075,21 @@ struct ContentView: View {
         return f
     }()
 
+    /// One chip, not three — everything you weigh about this photo in a
+    /// single object, tinted by its weight. A second chip appears only
+    /// when the photo is a category worth calling out.
     private func photoCaption(_ asset: PHAsset) -> some View {
         let size = assetFileSize(asset)
+        var facts: [String] = []
+        if let date = asset.creationDate {
+            facts.append(Self.captionDateFormatter.string(from: date))
+        }
+        if size > 0 {
+            facts.append(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))
+        }
         return HStack(spacing: 6) {
-            if let date = asset.creationDate {
-                captionChip("calendar", Self.captionDateFormatter.string(from: date), tint: nil)
-            }
-            if size > 0 {
-                captionChip("internaldrive",
-                            ByteCountFormatter.string(fromByteCount: size, countStyle: .file),
-                            tint: heftTint(size))
+            if !facts.isEmpty {
+                captionChip("calendar", facts.joined(separator: " · "), tint: heftTint(size))
             }
             if asset.mediaSubtypes.contains(.photoScreenshot) {
                 captionChip("camera.viewfinder", "Screenshot", tint: nil)
@@ -1110,62 +1124,6 @@ struct ContentView: View {
         .overlay(Capsule().strokeBorder(Theme.hairline, lineWidth: 1))
     }
 
-    private var counterRow: some View {
-        HStack {
-            HStack(spacing: 5) {
-                Image(systemName: "trash")
-                    .font(.caption.weight(.semibold))
-                Text("\(toBeDeleted.count)")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .contentTransition(.numericText())
-            }
-            .foregroundColor(Theme.toss)
-            .animation(Theme.settle, value: toBeDeleted.count)
-            .accessibilityElement()
-            .accessibilityLabel("\(toBeDeleted.count) selected to delete")
-
-            Spacer()
-
-            // The reward loop, mid-session: the space you've already won
-            // ticks up with every left swipe, not just at the end.
-            if totalSize > 0 {
-                Text(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))
-                    .font(.footnote.weight(.semibold).monospacedDigit())
-                    .foregroundColor(Theme.toss)
-                    .lineLimit(1)
-                    .contentTransition(.numericText())
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Theme.toss.opacity(0.14), in: Capsule())
-                    .scaleEffect(tallyPop ? 1.16 : 1)
-                    .animation(Theme.settle, value: totalSize)
-                    .transition(.scale(scale: 0.7).combined(with: .opacity))
-                    .onChange(of: totalSize) { _ in
-                        guard !UIAccessibility.isReduceMotionEnabled else { return }
-                        withAnimation(Theme.pop) { tallyPop = true }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
-                            withAnimation(Theme.settle) { tallyPop = false }
-                        }
-                    }
-                    .accessibilityLabel("\(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file)) marked for deletion")
-            }
-
-            Spacer()
-
-            HStack(spacing: 5) {
-                Text("\(max(currentIndex - toBeDeleted.count, 0))")
-                    .font(.subheadline.weight(.semibold).monospacedDigit())
-                    .contentTransition(.numericText())
-                Image(systemName: "checkmark")
-                    .font(.caption.weight(.semibold))
-            }
-            .foregroundColor(Theme.keep)
-            .animation(Theme.settle, value: currentIndex - toBeDeleted.count)
-            .accessibilityElement()
-            .accessibilityLabel("\(max(currentIndex - toBeDeleted.count, 0)) kept")
-        }
-        .padding(.horizontal, 6)
-    }
 
     private var stackIndices: [Int] {
         guard currentIndex < photoAssets.count else { return [] }
@@ -1280,7 +1238,8 @@ struct ContentView: View {
             // unguarded destructive tap in the app.
             showPillConfirm = true
         } label: {
-            // Size only — the counter row above already shows the count.
+            // The only place the marked size appears — the ribbon carries
+            // how many, this carries how much, and it's the actionable one.
             Text("Delete \(ByteCountFormatter.string(fromByteCount: totalSize, countStyle: .file))")
                 .font(.subheadline.weight(.semibold))
                 .contentTransition(.numericText())

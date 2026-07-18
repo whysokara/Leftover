@@ -174,25 +174,28 @@ in hand; an empty library falls back to Home.
    exist) · the **decision ribbon** · bare "Keep all" text (`dim`,
    footnote, 44pt hit area — no capsule; a glass pill competed with the
    photo for a secondary escape hatch).
-1a. **Decision ribbon** — the progress bar as a record, not just a
-   fraction: one capsule segment per photo, `toss` where you deleted,
-   `keep` where you kept, `cream` (and taller) for the photo in hand,
-   `hairline` for untouched. Sessions over 24 photos fall back to the
-   continuous cream bar — segments that thin read as mush.
+1a. **Decision ribbon** — the screen's single progress element, and a
+   record rather than a fraction: one capsule segment per photo, `toss`
+   where you deleted, `keep` where you kept, `cream` (and taller) for the
+   photo in hand, `hairline` for untouched. Over 24 photos it collapses to
+   one bar whose filled run still splits coral/teal in proportion — the
+   ribbon says *what you did* at every session length, which is what lets
+   the numeric counters stay deleted.
 1b. Context line (`dim`, footnote, centered): "{session name} · {n} of
-   {total}" — names the session and gives the ribbon a scale. Memory
-   Burst swaps the name for the current photo's year ("This day, 2019").
-2. Counter row: marked count left (`toss`, mono), kept count right (`keep`,
-   mono), and — once anything is marked — the freed tally dead-center as a
-   `toss`-tinted capsule that pops (`Theme.pop`, Reduce-Motion gated) and
-   numericText-rolls on every left swipe, so marking pays out immediately
-   instead of only at the celebration.
-2a. Photo caption under the card — **chips, not a text line**: calendar +
-   "{Month Year}", drive + "{size}", and a "Screenshot" chip when it is
-   one. The size chip's coral tint climbs with the file's weight (8 MB
-   reads as heavy) so a space hog looks hot before the number is read;
-   ordinary photos stay neutral so the signal keeps meaning. Size comes
-   from the scanner's NSCache.
+   {total}" — the one place session numbers live. Memory Burst swaps the
+   name for the current photo's year ("This day, 2019").
+2. Photo chip under the card: calendar + "{Month Year} · {size}", plus a
+   "Screenshot" chip when it applies. One object, not three — and its
+   coral tint climbs with the file's weight (8 MB reads as heavy) so a
+   space hog looks hot before the number is read; ordinary photos stay
+   neutral so the signal keeps meaning. Size comes from the scanner's
+   NSCache.
+
+**No counter row.** It was three numbers (marked / freed / kept) restating
+what the ribbon already draws and what the Delete pill already says. The
+rule below — count and size exactly once per screen — applies to this
+screen too: the ribbon carries *how many*, the pill carries *how much*,
+the chip carries *this photo*. Anything more is the same fact twice.
 3. Card stack: top card + 2 peeking (scale 0.94/0.88, lift −16/−30, opacity
    0.7/0.4). Stack height flexes up to 470pt so short screens never push the
    dock off.
