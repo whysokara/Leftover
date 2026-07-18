@@ -5,7 +5,10 @@
 //  LibraryScanner: one pass over the library computes a 64-bit dHash
 //  and a Laplacian sharpness score per photo, cached as JSON in
 //  Application Support (rescans only analyze photos the cache hasn't
-//  seen). Three products fall out of the scan:
+//  seen). The grouped products are persisted too (leftover-results.json)
+//  with a cheap library fingerprint, so a relaunch restores them
+//  instantly instead of redoing the O(n²) grouping — see
+//  `restoreThenRefreshIfStale`. Three products fall out of the scan:
 //    - duplicateGroups: near-identical photos (Hamming ≤ 5, global)
 //    - similarGroups:   rapid-fire series (≤ 10 s apart, Hamming ≤ 16)
 //    - blurryAssets:    sharpness below threshold, blurriest first
@@ -36,6 +39,9 @@ final class LibraryScanner: ObservableObject {
     /// on the main thread.
     @Published var blurryBytes: Int64 = 0
     @Published var hasScanned = false
+    /// True while the stored results are being read back. Screens wait on
+    /// this instead of racing ahead into a fresh scan they may not need.
+    @Published private(set) var isRestoring = false
     /// True while grouping runs after the per-photo hash pass finishes —
     /// lets the UI say something other than a frozen 100%.
     @Published var isGrouping = false
@@ -69,16 +75,61 @@ final class LibraryScanner: ObservableObject {
 
     private var cache: [String: CacheEntry] = [:]
     private var cacheLoaded = false
+    /// Guards a background refresh so it can't overlap a visible scan.
+    private var isSilentScanning = false
 
-    private static var cacheURL: URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("leftover-scan.json")
+    /// Cheap stand-in for "has the library changed?". If neither the photo
+    /// count nor the newest creation date has moved, nothing worth
+    /// regrouping has happened, so the stored results are still true.
+    struct LibraryFingerprint: Codable, Equatable {
+        var count: Int
+        var newest: Double   // timeIntervalSince1970
     }
 
-    func scan() {
-        guard !isScanning else { return }
-        isScanning = true
+    /// A group flattened to identifiers — the assets themselves are
+    /// re-fetched on restore (PHAssets can't be persisted).
+    private struct GroupRecord: Codable {
+        var keeper: String
+        var members: [String]
+    }
+    private struct ResultsFile: Codable {
+        var version: Int
+        var fingerprint: LibraryFingerprint
+        var duplicates: [GroupRecord]
+        var similar: [GroupRecord]
+        var blurry: [String]
+    }
+    private static let resultsVersion = 1
+
+    private static var cacheURL: URL {
+        supportDirectory.appendingPathComponent("leftover-scan.json")
+    }
+    /// The grouped products, so a relaunch doesn't have to redo the O(n²)
+    /// grouping just to show what it already knew.
+    private static var resultsURL: URL {
+        supportDirectory.appendingPathComponent("leftover-results.json")
+    }
+    private static var supportDirectory: URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    private static func currentFingerprint() -> LibraryFingerprint {
+        let options = PHFetchOptions()
+        options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        let fetch = PHAsset.fetchAssets(with: .image, options: options)
+        return LibraryFingerprint(
+            count: fetch.count,
+            newest: fetch.firstObject?.creationDate?.timeIntervalSince1970 ?? 0)
+    }
+
+    /// `silent` runs the same pass without touching `isScanning`, so a
+    /// background refresh never replaces already-restored results with a
+    /// progress ring — the old numbers stay on screen until the new ones land.
+    func scan(silent: Bool = false) {
+        guard !isScanning, !isSilentScanning else { return }
+        if silent { isSilentScanning = true } else { isScanning = true }
         loadCache()
 
         DispatchQueue.global(qos: .userInitiated).async {
@@ -152,14 +203,22 @@ final class LibraryScanner: ObservableObject {
                 .map(\.0)
             let blurryTotal = blurry.reduce(Int64(0)) { $0 + Self.fileSize($1) }
 
+            // Taken from the very fetch we scanned (sorted newest-first),
+            // so the saved fingerprint describes exactly this library state
+            // even if photos arrive mid-scan.
+            let fingerprint = LibraryFingerprint(
+                count: assets.count,
+                newest: assets.first?.creationDate?.timeIntervalSince1970 ?? 0)
+
             DispatchQueue.main.async {
                 self.duplicateGroups = duplicates
                 self.similarGroups = similar
                 self.blurryAssets = blurry
                 self.blurryBytes = blurryTotal
-                self.isScanning = false
+                if silent { self.isSilentScanning = false } else { self.isScanning = false }
                 self.isGrouping = false
                 self.hasScanned = true
+                self.persistResults(fingerprint: fingerprint)
             }
         }
     }
@@ -177,6 +236,9 @@ final class LibraryScanner: ObservableObject {
             Self.fileSizeCache.removeObject(forKey: id as NSString)
         }
         saveCache()
+        // Deleting moved the library on, so re-measure rather than reuse
+        // the fingerprint from the last scan.
+        persistResults(fingerprint: nil)
     }
 
     private static func pruning(_ groups: [DuplicateGroup], removing ids: Set<String>) -> [DuplicateGroup] {
@@ -389,6 +451,100 @@ final class LibraryScanner: ObservableObject {
             .first ?? 0
         fileSizeCache.setObject(NSNumber(value: size), forKey: key)
         return size
+    }
+
+    // MARK: - Persisted results
+
+    /// Call once the library is readable. Rebuilds the last scan's products
+    /// from disk so Duplicates/Similar/Blurry open instantly on relaunch,
+    /// then — only if the library has actually changed since — refreshes
+    /// them quietly in the background. A first-ever run finds nothing and
+    /// leaves `hasScanned` false, so the user still scans once, on demand.
+    func restoreThenRefreshIfStale() {
+        restoreResults { [weak self] restored, isFresh in
+            guard let self, restored, !isFresh else { return }
+            self.scan(silent: true)
+        }
+    }
+
+    /// Reads the stored products and re-fetches their assets. `completion`
+    /// reports whether anything was restored, and whether the library still
+    /// matches the fingerprint those results were computed from.
+    private func restoreResults(completion: @escaping (_ restored: Bool, _ isFresh: Bool) -> Void) {
+        guard !hasScanned, !isRestoring else { return completion(false, true) }
+        isRestoring = true
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let data = try? Data(contentsOf: Self.resultsURL),
+                  let file = try? JSONDecoder().decode(ResultsFile.self, from: data),
+                  file.version == Self.resultsVersion else {
+                DispatchQueue.main.async {
+                    self.isRestoring = false
+                    completion(false, false)
+                }
+                return
+            }
+
+            // One batch fetch for every identifier the file mentions;
+            // anything deleted since simply won't come back.
+            let ids = Set(file.duplicates.flatMap(\.members)
+                          + file.similar.flatMap(\.members)
+                          + file.blurry)
+            var byID: [String: PHAsset] = [:]
+            PHAsset.fetchAssets(withLocalIdentifiers: Array(ids), options: nil)
+                .enumerateObjects { asset, _, _ in byID[asset.localIdentifier] = asset }
+
+            let duplicates = Self.rebuild(file.duplicates, from: byID)
+            let similar = Self.rebuild(file.similar, from: byID)
+            let blurry = file.blurry.compactMap { byID[$0] }
+            let blurryTotal = blurry.reduce(Int64(0)) { $0 + Self.fileSize($1) }
+            let isFresh = Self.currentFingerprint() == file.fingerprint
+
+            DispatchQueue.main.async {
+                self.duplicateGroups = duplicates
+                self.similarGroups = similar
+                self.blurryAssets = blurry
+                self.blurryBytes = blurryTotal
+                self.hasScanned = true
+                self.isRestoring = false
+                completion(true, isFresh)
+            }
+        }
+    }
+
+    private static func rebuild(_ records: [GroupRecord],
+                                from byID: [String: PHAsset]) -> [DuplicateGroup] {
+        records.compactMap { record -> DuplicateGroup? in
+            let members = record.members.compactMap { byID[$0] }
+            guard members.count > 1 else { return nil }
+            // Keeper first, matching how a fresh scan orders a group.
+            let keeperID = members.contains { $0.localIdentifier == record.keeper }
+                ? record.keeper : members[0].localIdentifier
+            let ordered = members.filter { $0.localIdentifier == keeperID }
+                + members.filter { $0.localIdentifier != keeperID }
+            let wasted = ordered.dropFirst().reduce(Int64(0)) { $0 + fileSize($1) }
+            return DuplicateGroup(assets: ordered, keeperID: keeperID, wastedBytes: wasted)
+        }
+        .sorted { $0.wastedBytes > $1.wastedBytes }
+    }
+
+    /// Snapshots the current products to disk. Pass the fingerprint the
+    /// products were computed against; omit it to measure the library now
+    /// (used after a delete, which changes the count).
+    private func persistResults(fingerprint: LibraryFingerprint?) {
+        let records: ([GroupRecord], [GroupRecord], [String]) = (
+            duplicateGroups.map { GroupRecord(keeper: $0.keeperID, members: $0.assets.map(\.localIdentifier)) },
+            similarGroups.map { GroupRecord(keeper: $0.keeperID, members: $0.assets.map(\.localIdentifier)) },
+            blurryAssets.map(\.localIdentifier)
+        )
+        DispatchQueue.global(qos: .utility).async {
+            let file = ResultsFile(version: Self.resultsVersion,
+                                   fingerprint: fingerprint ?? Self.currentFingerprint(),
+                                   duplicates: records.0,
+                                   similar: records.1,
+                                   blurry: records.2)
+            guard let data = try? JSONEncoder().encode(file) else { return }
+            try? data.write(to: Self.resultsURL, options: .atomic)
+        }
     }
 
     // MARK: - Cache

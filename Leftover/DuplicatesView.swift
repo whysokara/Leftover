@@ -133,16 +133,20 @@ struct GroupReviewView: View {
             Text("This frees \(ByteCountFormatter.string(fromByteCount: markedBytes, countStyle: .file)). They'll stay in Recently Deleted for 30 days, so you can still restore them from Photos.")
         }
         .animation(Theme.settle, value: marked.isEmpty)
-        .onAppear {
-            if !scanner.hasScanned {
-                scanner.scan()
-            }
-        }
+        // Wait for a restore in flight — the stored results usually make a
+        // scan unnecessary. If none came back, scan once it settles.
+        .onAppear { scanIfNeeded() }
+        .onChange(of: scanner.isRestoring) { _ in scanIfNeeded() }
         .onChange(of: groups.count) { _ in
             // After a delete, drop marks that no longer exist.
             let alive = Set(groups.flatMap(\.assets).map(\.localIdentifier))
             marked = marked.intersection(alive)
         }
+    }
+
+    private func scanIfNeeded() {
+        guard !scanner.hasScanned, !scanner.isRestoring, !scanner.isScanning else { return }
+        scanner.scan()
     }
 
     private var header: some View {

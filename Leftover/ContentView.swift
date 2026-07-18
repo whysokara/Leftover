@@ -399,7 +399,10 @@ struct ContentView: View {
             startBlurrySession()
         } else {
             withAnimation(Theme.settle) { showBlurryScan = true }
-            libraryScanner.scan()
+            // A restore in flight will flip hasScanned itself, and the
+            // onChange above flows straight into the session — no need to
+            // burn a scan that the stored results would have answered.
+            if !libraryScanner.isRestoring { libraryScanner.scan() }
         }
     }
 
@@ -601,6 +604,10 @@ struct ContentView: View {
                             _ = self.restoreSavedSessionIfAny()
                         }
                         self.loadHomeData()
+                        // Bring back the last scan's duplicate/similar/blurry
+                        // products so those screens open instantly; quietly
+                        // refreshes only if the library actually moved.
+                        self.libraryScanner.restoreThenRefreshIfStale()
                         #if DEBUG
                         // Headless-verification hooks (simctl launch … -Leftover…).
                         let args = ProcessInfo.processInfo.arguments
