@@ -114,6 +114,22 @@ struct SettingsView: View {
                         }
                     }
 
+                    // The deliberate share path — the celebration pill
+                    // covers the emotional one. Same link + pitch, so a
+                    // friend gets the same story either way.
+                    ShareLink(item: AppLink.site, message: Text(AppLink.invite)) {
+                        HStack(spacing: 12) {
+                            IconBadge(icon: "square.and.arrow.up", chip: Theme.chipPink, size: 28)
+                            Text("Share Leftover")
+                                .foregroundColor(Theme.ink)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(Theme.dim)
+                        }
+                    }
+                    .accessibilityHint("Sends the app to a friend")
+
                     Button {
                         showPrivacyPolicy = true
                     } label: {

@@ -2134,11 +2134,8 @@ struct DeleteBlastView: View {
         let message = celebration.freed > 0
             ? "I just freed \(freedText) of photo clutter with Leftover 🧹"
             : "I just cleaned \(celebration.count) photos with Leftover 🧹"
-        var items: [Any] = [message]
-        if let url = URL(string: "https://whysokara.github.io/Leftover/") {
-            items.append(url)
-        }
-        let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        let vc = UIActivityViewController(activityItems: [message, AppLink.site],
+                                          applicationActivities: nil)
         vc.completionWithItemsHandler = { _, _, _, _ in
             isSharing = false
             finish()
