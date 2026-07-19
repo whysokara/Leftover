@@ -56,7 +56,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Daily reminder")
                 } footer: {
-                    Text("At most one gentle reminder a day, only if you haven’t cleaned up yet. Off anytime.")
+                    Text("One gentle nudge a day. Off anytime.")
                 }
 
                 Section {
@@ -69,13 +69,13 @@ struct SettingsView: View {
                         }
                     } label: {
                         trustRow(icon: "clock.arrow.circlepath",
-                                 text: "Tossed photos stay in Recently Deleted for 30 days")
+                                 text: "Deleted photos stay for 30 days")
                     }
                     .foregroundColor(Theme.ink)
                 } header: {
                     Text("Privacy")
                 } footer: {
-                    Text("Restore anything within 30 days from Photos → Albums → Recently Deleted. Tap the row to open Photos.")
+                    Text("Tap to open Photos → Recently Deleted.")
                 }
 
                 Section("About") {
@@ -94,9 +94,6 @@ struct SettingsView: View {
                             Text("Trophies")
                                 .foregroundColor(Theme.ink)
                             Spacer()
-                            Text("\(stats.achievedMilestones.count) of \(TrophyShelfView.badges.count)")
-                                .font(.footnote.monospacedDigit())
-                                .foregroundColor(Theme.dim)
                             Image(systemName: "chevron.right")
                                 .font(.caption.weight(.bold))
                                 .foregroundColor(Theme.dim)
