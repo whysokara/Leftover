@@ -223,7 +223,7 @@ struct HealthDetailView: View {
                 IconBadge(icon: part.icon, chip: part.chip, size: 34)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(part.name)
-                        .font(.system(.body).weight(.medium))
+                        .font(.body.weight(.medium))
                         .foregroundColor(Theme.ink)
                     Text(part.detail)
                         .font(.footnote)

@@ -457,7 +457,7 @@ struct HomeView: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(card.title)
-                    .font(.system(.subheadline).weight(.semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundColor(card.dimmed ? Theme.dim : (photoBacked ? .white : Theme.onChip))
                     .lineLimit(1)
                 if !card.detail.isEmpty {

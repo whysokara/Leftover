@@ -152,7 +152,7 @@ struct LargeVideosView: View {
                         .background(Circle().fill(.black.opacity(0.4)))
 
                     Text(durationLabel(item.asset.duration))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .font(.caption2.weight(.bold).monospacedDigit())
                         .foregroundColor(.white)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
@@ -167,7 +167,7 @@ struct LargeVideosView: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(dateLabel(item.asset.creationDate))
-                        .font(.system(.body).weight(.semibold))
+                        .font(.body.weight(.semibold))
                         .foregroundColor(Theme.ink)
                     Text("Tap thumbnail to play")
                         .font(.caption)

@@ -2325,7 +2325,7 @@ struct AlbumGridItem: View {
                 }
 
                 Text(title)
-                    .font(.system(.headline))
+                    .font(.headline)
                     .foregroundColor(Theme.ink)
 
                 Text("\(count) Photos")

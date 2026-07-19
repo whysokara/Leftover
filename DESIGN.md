@@ -90,6 +90,20 @@ Counters animate with `.contentTransition(.numericText())`. The Home wordmark
 is `lineLimit(1)` + `minimumScaleFactor(0.7)` — it compresses, never wraps.
 Never cap with `.dynamicTypeSize(...)`.
 
+**Spelling.** One way to write each thing, so a grep tells the truth:
+
+- Text styles are written bare — `.font(.subheadline.weight(.semibold))`,
+  never `.font(.system(.subheadline).weight(.semibold))`. They compile to
+  the same font; two spellings just make the codebase look inconsistent
+  and hide real outliers in a grep.
+- `Font.system(.style, design:)` survives in exactly one place —
+  `Theme.wordmark`, which needs `design: .serif`.
+- **`.system(size:)` is for SF Symbols only.** A glyph is sized to the
+  shape that holds it (a 36pt circle, a 190pt watermark) and doesn't
+  belong to the type ramp. Any *text* on a fixed point size is a bug: it
+  ignores Dynamic Type. The one that slipped through — a video duration
+  badge at 10pt — is now `.caption2`.
+
 ## Onboarding
 
 Two steps (`OnboardingView`), value-first then permission — the flow's
