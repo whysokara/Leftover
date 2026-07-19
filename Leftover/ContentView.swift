@@ -2445,6 +2445,10 @@ struct PhotoAssetImage: View {
 
 struct PhotoThumbnailView: View {
     let asset: PHAsset
+    /// Pixel size to request. The default covers small grid cells; views
+    /// that show photos large enough to *judge* (group review) pass a
+    /// bigger size so the tile isn't a soft upscale.
+    var pixelSize: CGSize = ThumbCache.size
     @State private var image: UIImage?
 
     var body: some View {
@@ -2462,7 +2466,7 @@ struct PhotoThumbnailView: View {
         .onAppear {
             ThumbCache.manager.requestImage(
                 for: asset,
-                targetSize: ThumbCache.size,
+                targetSize: pixelSize,
                 contentMode: .aspectFill,
                 options: ThumbCache.options()
             ) { result, _ in

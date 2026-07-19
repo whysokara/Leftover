@@ -221,6 +221,10 @@ struct GroupReviewView: View {
     /// enough of each photo to judge it, especially on a phone-width
     /// card; scrolling guarantees every photo is fully visible instead
     /// of hidden behind the next one or a "+N" count.
+    /// Big enough to actually compare near-identical photos — the whole
+    /// job of this screen. 84pt tiles read as postage stamps.
+    private static let tileSize: CGFloat = 132
+
     private func groupThumbRow(_ group: DuplicateGroup) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: Theme.Space.md) {
@@ -228,7 +232,7 @@ struct GroupReviewView: View {
                 // DuplicateFinder.swift), so no re-sorting needed here.
                 ForEach(group.assets, id: \.localIdentifier) { asset in
                     groupThumb(asset, isKeeper: asset.localIdentifier == group.keeperID)
-                        .frame(width: 84, height: 84)
+                        .frame(width: Self.tileSize, height: Self.tileSize)
                 }
             }
             // Rest position matches the header's inset; scrolled content
@@ -248,7 +252,13 @@ struct GroupReviewView: View {
             }
         } label: {
             ZStack(alignment: .topTrailing) {
-                PhotoThumbnailView(asset: asset)
+                // Sized explicitly so the fill crop is exact, and fed a
+                // ~3x pixel request — the default 240px grid thumb is a
+                // soft upscale at this tile size.
+                PhotoThumbnailView(asset: asset,
+                                   pixelSize: CGSize(width: Self.tileSize * 3,
+                                                     height: Self.tileSize * 3))
+                    .frame(width: Self.tileSize, height: Self.tileSize)
                     .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
                     .opacity(isMarked ? 0.5 : 1)
                     // Plain tiles get a hairline like every other surface
@@ -267,16 +277,16 @@ struct GroupReviewView: View {
                 // star/trash read as black holes on the dark canvas.
                 if isMarked {
                     Image(systemName: "trash.circle.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 22))
                         .foregroundColor(Theme.toss)
                         .background(Circle().fill(.white))
-                        .padding(4)
+                        .padding(6)
                 } else if isKeeper {
                     Image(systemName: "star.circle.fill")
-                        .font(.system(size: 18))
+                        .font(.system(size: 22))
                         .foregroundColor(accent)
                         .background(Circle().fill(.white))
-                        .padding(4)
+                        .padding(6)
                 }
             }
         }
