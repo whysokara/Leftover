@@ -195,6 +195,10 @@ struct LargeVideosView: View {
         .buttonStyle(ScaleButtonStyle())
         .accessibilityLabel("Video from \(dateLabel(item.asset.creationDate)), \(ByteCountFormatter.string(fromByteCount: item.size, countStyle: .file))\(isMarked ? ", selected to delete" : "")")
         .accessibilityHint("Tap to \(isMarked ? "deselect" : "select") for deletion")
+        // Playing is a tap on the thumbnail, which VoiceOver can't reach
+        // inside the row button — same custom-action escape hatch the
+        // swipe card uses for delete/keep.
+        .accessibilityAction(named: "Preview") { previewItem = item }
     }
 
     private func durationLabel(_ duration: TimeInterval) -> String {

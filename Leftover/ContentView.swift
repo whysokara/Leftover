@@ -27,6 +27,8 @@ struct ContentView: View {
     @State private var isLoadingAlbums = false
     @State private var photoAuthStatus: PHAuthorizationStatus = .notDetermined
     @State private var showSnackbar = false
+    /// Generation counter so a stale toast timer can't dismiss a newer toast.
+    @State private var toastToken = 0
     @State private var snackbarMessage = ""
     @State private var allPhotosThumbnail: UIImage?
     @State private var allPhotosCount: Int = 0
@@ -1673,7 +1675,10 @@ struct ContentView: View {
     }
 
     func deleteMarkedPhotos() {
-        guard !isDeleting else { return }
+        // Matches performBatchDelete's guard: an empty batch would still
+        // run performChanges, then bank a "0 Deleted" celebration and a
+        // completed burst off the back of it.
+        guard !isDeleting, !toBeDeleted.isEmpty else { return }
         isDeleting = true
         // Thumbnails must be captured before the assets stop existing —
         // they star in the delete celebration.
@@ -1828,10 +1833,16 @@ struct ContentView: View {
         snackbarMessage = message
         // Toasts are transient — surface them to VoiceOver too.
         UIAccessibility.post(notification: .announcement, argument: message)
+        toastToken &+= 1
+        let token = toastToken
         withAnimation(Theme.settle) {
             showSnackbar = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            // Only the newest toast may dismiss itself. Otherwise a toast
+            // posted two seconds after another one inherits the first
+            // one's timer and vanishes after a single second.
+            guard token == toastToken else { return }
             withAnimation(Theme.settle) {
                 showSnackbar = false
             }
