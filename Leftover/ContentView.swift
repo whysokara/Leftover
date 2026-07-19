@@ -385,6 +385,9 @@ struct ContentView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Opaque like every other full-screen view: without this the push
+        // transition slid a see-through panel over the outgoing screen.
+        .background(Theme.stage)
         .edgeSwipeBack {
             withAnimation(Theme.settle) { showBlurryScan = false }
         }
@@ -983,10 +986,6 @@ struct ContentView: View {
         }
     }
 
-    private var progressFraction: CGFloat {
-        photoAssets.isEmpty ? 0 : CGFloat(currentIndex) / CGFloat(photoAssets.count)
-    }
-
     /// The progress bar as a record of decisions: one segment per photo —
     /// coral where you deleted, teal where you kept, cream for the one in
     /// hand. Reads as a ribbon of what you've done, not just how far you
@@ -1383,6 +1382,10 @@ struct ContentView: View {
             currentIndex = photoAssets.count
             moveToNextPhoto()
         }
+        // Jumping to the end skips commitSwipe, so the album's saved
+        // position never got cleared — reopening it resumed into photos
+        // this just kept. Finishing here means finished.
+        recordAlbumProgress()
     }
 
     func exitSession() {
@@ -1403,8 +1406,13 @@ struct ContentView: View {
     /// in the background doesn't silently discard a long swipe run.
     func persistSessionIfNeeded() {
         // Progress alone is worth saving — someone who kept 40 photos and
-        // marked none should not have to judge those 40 again.
-        guard sessionActive, currentIndex > 0 || !toBeDeleted.isEmpty else {
+        // marked none should not have to judge those 40 again. But a deck
+        // that's been reviewed to the end with nothing marked is finished,
+        // not interrupted: restoring it would reopen the app on a spent
+        // album's "Album Reviewed" screen instead of Home.
+        let finishedAndEmpty = currentIndex >= photoAssets.count && toBeDeleted.isEmpty
+        guard sessionActive, !finishedAndEmpty,
+              currentIndex > 0 || !toBeDeleted.isEmpty else {
             UserDefaults.standard.removeObject(forKey: Self.savedSessionKey)
             return
         }

@@ -531,8 +531,8 @@ struct HomeView: View {
                     collageCell(assets[3], cell)
                 }
             }
-        } else {
-            PhotoThumbnailView(asset: assets[0])
+        } else if let first = assets.first {
+            PhotoThumbnailView(asset: first)
                 .frame(width: cardSize, height: cardSize)
                 .clipped()
         }

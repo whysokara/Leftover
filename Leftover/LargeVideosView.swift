@@ -40,11 +40,14 @@ struct LargeVideosView: View {
 
             if videos.isEmpty {
                 Spacer()
-                VStack(spacing: 12) {
+                VStack(spacing: Theme.Space.md) {
                     LeftoverBuddy(color: Theme.chipCoral, expression: .relieved)
                     Text("No Videos")
                         .font(Theme.title)
                         .foregroundColor(Theme.ink)
+                    Text("No videos in your library.")
+                        .font(.subheadline)
+                        .foregroundColor(Theme.dim)
                 }
                 Spacer()
             } else {
@@ -53,8 +56,8 @@ struct LargeVideosView: View {
                         .font(.footnote)
                         .foregroundColor(Theme.dim)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 8)
+                        .padding(.horizontal, Theme.screenMargin)
+                        .padding(.bottom, Theme.Space.sm)
                 }
 
                 ScrollView {
@@ -78,7 +81,7 @@ struct LargeVideosView: View {
                         RoundedRectangle(cornerRadius: 20, style: .continuous)
                             .strokeBorder(Theme.hairline, lineWidth: 1)
                     )
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, Theme.screenMargin)
                     .padding(.bottom, 100)
                 }
             }
@@ -92,8 +95,8 @@ struct LargeVideosView: View {
                     showDeleteConfirm = true
                 }
                 .buttonStyle(TossButtonStyle())
-                .padding(.horizontal, 20)
-                .padding(.bottom, 12)
+                .padding(.horizontal, Theme.screenMargin)
+                .padding(.bottom, Theme.Space.md)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -116,7 +119,7 @@ struct LargeVideosView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: Theme.Space.md) {
             BackButton(action: onClose)
 
             Text("Large Videos")
@@ -125,9 +128,9 @@ struct LargeVideosView: View {
 
             Spacer()
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 16)
+        .padding(.horizontal, Theme.screenMargin)
+        .padding(.top, Theme.Space.sm)
+        .padding(.bottom, Theme.Space.lg)
     }
 
     private func videoRow(_ item: VideoItem) -> some View {
@@ -138,7 +141,7 @@ struct LargeVideosView: View {
                 if isMarked { marked.remove(item.id) } else { marked.insert(item.id) }
             }
         } label: {
-            HStack(spacing: 14) {
+            HStack(spacing: Theme.Space.md) {
                 ZStack {
                     PhotoThumbnailView(asset: item.asset)
                         .frame(width: 64, height: 64)
@@ -165,7 +168,7 @@ struct LargeVideosView: View {
                     previewItem = item
                 }
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: Theme.Space.xs) {
                     Text(dateLabel(item.asset.creationDate))
                         .font(.body.weight(.semibold))
                         .foregroundColor(Theme.ink)
