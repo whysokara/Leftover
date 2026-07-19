@@ -56,7 +56,10 @@ scrim.
 Feature identity: Duplicates=teal, Similar Shots=pink, Screenshots=blue,
 Time-related/Burst=orange, Blurry=yellow, Large Videos=coral, Albums=navy.
 Group-review screens carry their chip color as an
-`accent` (card borders, keeper badges, empty-state buddy).
+`accent` on the things it *means* something for — the keeper's badge and
+border, the empty-state buddy. Their cards are plain `surface` + hairline
+like every other card in the app; a colored border and glow around each
+one made the screen look like a different product.
 
 Icon badges (`IconBadge`, Theme.swift): thin non-`.fill` SF Symbol in its
 accent color on a ~16% tint of the same color — used in Settings rows.

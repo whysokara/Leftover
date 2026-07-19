@@ -75,7 +75,7 @@ struct GroupReviewView: View {
                 Spacer()
             } else if groups.isEmpty {
                 Spacer()
-                VStack(spacing: 12) {
+                VStack(spacing: Theme.Space.md) {
                     LeftoverBuddy(color: accent, expression: .relieved)
                     Text(mode.emptyTitle)
                         .font(Theme.title)
@@ -93,13 +93,13 @@ struct GroupReviewView: View {
                 // before. The bottom inset clears the floating delete pill.
                 GeometryReader { geo in
                     ScrollView {
-                        VStack(spacing: 16) {
+                        VStack(spacing: Theme.Space.lg) {
                             ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                                 groupCard(group)
                                     .cascadeIn(appeared, slot: Double(index))
                             }
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, Theme.screenMargin)
                         .frame(maxWidth: .infinity)
                         .frame(minHeight: geo.size.height - 96, alignment: .center)
                         .padding(.bottom, 96)
@@ -117,8 +117,8 @@ struct GroupReviewView: View {
                     showDeleteConfirm = true
                 }
                 .buttonStyle(TossButtonStyle())
-                .padding(.horizontal, 20)
-                .padding(.bottom, 12)
+                .padding(.horizontal, Theme.screenMargin)
+                .padding(.bottom, Theme.Space.md)
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
@@ -150,7 +150,7 @@ struct GroupReviewView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 14) {
+        HStack(spacing: Theme.Space.md) {
             BackButton(action: onClose)
 
             Text(mode.title)
@@ -165,16 +165,16 @@ struct GroupReviewView: View {
                     .foregroundColor(Theme.dim)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 16)
+        .padding(.horizontal, Theme.screenMargin)
+        .padding(.top, Theme.Space.sm)
+        .padding(.bottom, Theme.Space.lg)
     }
 
     private func groupCard(_ group: DuplicateGroup) -> some View {
         let groupIDs = group.assets.map(\.localIdentifier)
         let tossCount = groupIDs.filter { marked.contains($0) }.count
 
-        return VStack(alignment: .leading, spacing: 10) {
+        return VStack(alignment: .leading, spacing: Theme.Space.md) {
             HStack {
                 Text("\(group.assets.count) \(mode == .duplicates ? "copies" : "shots") · \(ByteCountFormatter.string(fromByteCount: group.wastedBytes, countStyle: .file)) wasted")
                     .font(.footnote.monospacedDigit())
@@ -190,22 +190,28 @@ struct GroupReviewView: View {
                         marked.subtract(groupIDs)
                     }
                 }
-                .font(.system(size: 13, weight: .semibold))
+                .font(.footnote.weight(.semibold))
                 .foregroundColor(tossCount == 0 ? Theme.toss : Theme.cream)
             }
+            // Only the header is inset — the photo row runs to the card's
+            // edges so scrolling passes under them instead of chopping the
+            // last thumbnail in half.
+            .padding(.horizontal, Theme.Space.lg)
 
             groupThumbRow(group)
         }
-        .padding(14)
+        .padding(.vertical, Theme.Space.lg)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .fill(Theme.surface)
         )
+        // Same surface + hairline as every other card in the app. The
+        // feature's color lives where it means something — the keeper's
+        // badge and border — not as a glow around the whole card.
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(accent.opacity(0.3), lineWidth: 1.5)
+                .strokeBorder(Theme.hairline, lineWidth: 1)
         )
-        .shadow(color: accent.opacity(0.12), radius: 12, y: 4)
     }
 
     /// Every photo in the group at the same size, in a normal scrolling
@@ -217,7 +223,7 @@ struct GroupReviewView: View {
     /// of hidden behind the next one or a "+N" count.
     private func groupThumbRow(_ group: DuplicateGroup) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: Theme.Space.md) {
                 // group.assets is keeper-first (see makeGroups in
                 // DuplicateFinder.swift), so no re-sorting needed here.
                 ForEach(group.assets, id: \.localIdentifier) { asset in
@@ -225,6 +231,9 @@ struct GroupReviewView: View {
                         .frame(width: 84, height: 84)
                 }
             }
+            // Rest position matches the header's inset; scrolled content
+            // runs out under the card edge rather than stopping short.
+            .padding(.horizontal, Theme.Space.lg)
         }
     }
 
@@ -240,14 +249,18 @@ struct GroupReviewView: View {
         } label: {
             ZStack(alignment: .topTrailing) {
                 PhotoThumbnailView(asset: asset)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous))
                     .opacity(isMarked ? 0.5 : 1)
+                    // Plain tiles get a hairline like every other surface
+                    // in the app; only a decision (keeper / marked) earns
+                    // a colored 2pt edge. The old white `ink` shadow put a
+                    // halo on every tile, which made neighbours smear into
+                    // each other and read as overlapping.
                     .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(isMarked ? Theme.toss : (isKeeper ? accent : Theme.surface),
-                                          lineWidth: isMarked || isKeeper ? 2.5 : 2)
+                        RoundedRectangle(cornerRadius: Theme.tileRadius, style: .continuous)
+                            .strokeBorder(isMarked ? Theme.toss : (isKeeper ? accent : Theme.hairline),
+                                          lineWidth: isMarked || isKeeper ? 2 : 1)
                     )
-                    .shadow(color: Theme.ink.opacity(0.18), radius: 8, y: 4)
 
                 // White backing — the SF `.circle.fill` glyphs render
                 // their symbol as a cutout, so a dark backing made the
