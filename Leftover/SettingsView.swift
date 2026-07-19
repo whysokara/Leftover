@@ -16,6 +16,9 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showPrivacyPolicy = false
     @State private var showTrophies = false
+    @State private var showMailFallback = false
+
+    static let feedbackAddress = "himanshukarak@gmail.com"
 
     var body: some View {
         NavigationStack {
@@ -114,6 +117,21 @@ struct SettingsView: View {
                         }
                     }
 
+                    Button {
+                        sendFeedback()
+                    } label: {
+                        HStack(spacing: 12) {
+                            IconBadge(icon: "envelope", chip: Theme.chipTeal, size: 28)
+                            Text("Send Feedback")
+                                .foregroundColor(Theme.ink)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(Theme.dim)
+                        }
+                    }
+                    .accessibilityHint("Opens an email to the developer")
+
                     // The deliberate share path — the celebration pill
                     // covers the emotional one. Same link + pitch, so a
                     // friend gets the same story either way.
@@ -158,6 +176,11 @@ struct SettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Theme.stage)
+            .alert("Email copied", isPresented: $showMailFallback) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("No mail app is set up on this iPhone, so \(Self.feedbackAddress) was copied to your clipboard instead.")
+            }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
@@ -188,6 +211,32 @@ struct SettingsView: View {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "1"
         return "\(version) (\(build))"
+    }
+
+    /// Opens Mail with the version and iOS build already in the footer —
+    /// the two things every useful bug report needs and nobody thinks to
+    /// include. Falls back to copying the address, since `mailto:` does
+    /// nothing on a device with no mail account set up.
+    private func sendFeedback() {
+        let body = """
+
+
+        —
+        Leftover \(versionString) · iOS \(UIDevice.current.systemVersion)
+        """
+        var components = URLComponents()
+        components.scheme = "mailto"
+        components.path = Self.feedbackAddress
+        components.queryItems = [
+            URLQueryItem(name: "subject", value: "Leftover feedback"),
+            URLQueryItem(name: "body", value: body),
+        ]
+        if let url = components.url, UIApplication.shared.canOpenURL(url) {
+            UIApplication.shared.open(url)
+        } else {
+            UIPasteboard.general.string = Self.feedbackAddress
+            showMailFallback = true
+        }
     }
 }
 
