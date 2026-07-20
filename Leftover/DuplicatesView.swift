@@ -9,6 +9,7 @@
 
 import SwiftUI
 import Photos
+import UIKit
 
 enum GroupReviewMode {
     case duplicates
@@ -221,9 +222,14 @@ struct GroupReviewView: View {
     /// enough of each photo to judge it, especially on a phone-width
     /// card; scrolling guarantees every photo is fully visible instead
     /// of hidden behind the next one or a "+N" count.
-    /// Big enough to actually compare near-identical photos — the whole
-    /// job of this screen. 84pt tiles read as postage stamps.
-    private static let tileSize: CGFloat = 132
+    /// Sized so exactly four tiles fill the card's visible width (leading
+    /// inset + 3 gaps, the fourth kissing the card edge). Computed once
+    /// from the screen width rather than a fixed constant, so the count
+    /// holds on every device width.
+    private static let tileSize: CGFloat = {
+        let cardWidth = UIScreen.main.bounds.width - Theme.screenMargin * 2
+        return (cardWidth - Theme.Space.lg - Theme.Space.md * 3) / 4
+    }()
 
     private func groupThumbRow(_ group: DuplicateGroup) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
